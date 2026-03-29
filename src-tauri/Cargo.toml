@@ -1,0 +1,71 @@
+[package]
+name = "edn-tracker"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "edn_tracker_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "edn-tracker"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api"] }
+tauri-plugin-shell = "2"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Database
+sqlx = { version = "0.8", features = [
+    "runtime-tokio-rustls",
+    "sqlite",
+    "chrono",
+    "uuid",
+] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# UUIDs
+uuid = { version = "1", features = ["v4"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# PDF text extraction (native text layer)
+pdf-extract = "0.7"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# App directories
+dirs = "5"
+
+# macOS system frameworks for Apple Vision OCR
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = [
+    "NSArray",
+    "NSDictionary",
+    "NSError",
+    "NSString",
+    "NSURL",
+    "NSGeometry",
+] }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
