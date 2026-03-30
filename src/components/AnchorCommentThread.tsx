@@ -24,14 +24,13 @@ export const AnchorCommentThread: React.FC<AnchorCommentThreadProps> = ({
   const [isLoading, setIsLoading] = React.useState(false);
   const [newComment, setNewComment] = React.useState("");
   const [isPosting, setIsPosting] = React.useState(false);
-  const [author, setAuthor] = React.useState("Anonymous");
   const [error, setError] = React.useState<string | null>(null);
 
   const loadComments = React.useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const result = await invoke<AnchorComment[]>("getAnchorComments", {
+      const result = await invoke<AnchorComment[]>("get_anchor_comments", {
         anchorId,
       });
       setComments(result);
@@ -48,9 +47,9 @@ export const AnchorCommentThread: React.FC<AnchorCommentThreadProps> = ({
     try {
       setIsPosting(true);
       setError(null);
-      const comment = await invoke<AnchorComment>("addAnchorComment", {
+      const comment = await invoke<AnchorComment>("add_anchor_comment", {
         anchorId,
-        author: author.trim() || "Anonymous",
+        author: "me",
         content: newComment.trim(),
       });
       setComments((prev) => [...prev, comment]);
@@ -64,7 +63,7 @@ export const AnchorCommentThread: React.FC<AnchorCommentThreadProps> = ({
 
   const handleDeleteComment = async (commentId: string) => {
     try {
-      await invoke("deleteAnchorComment", { id: commentId });
+      await invoke("delete_anchor_comment", { id: commentId });
       setComments((prev) => prev.filter((c) => c.id !== commentId));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -157,12 +156,6 @@ export const AnchorCommentThread: React.FC<AnchorCommentThreadProps> = ({
 
           {/* Add comment form */}
           <div className="space-y-1.5 pt-2 border-t">
-            <Input
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
-              placeholder="Votre nom (optionnel)"
-              className="h-7 text-xs"
-            />
             <div className="flex gap-1.5">
               <Input
                 value={newComment}
