@@ -76,6 +76,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   // Anchor & backlinks state
   const [selectionMode, setSelectionMode] = React.useState(false);
   const [pendingSelection, setPendingSelection] = React.useState<SelectionRect | null>(null);
+  const [pendingPage, setPendingPage] = React.useState(1);
   const [anchorModalOpen, setAnchorModalOpen] = React.useState(false);
   const [anchors, setAnchors] = React.useState<Anchor[]>([]);
   const [showBacklinks, setShowBacklinks] = React.useState(false);
@@ -99,7 +100,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
       setAnchors([]);
       return;
     }
-    invoke<Anchor[]>("list_anchors", { pdfId, page: currentPage })
+    invoke<Anchor[]>("list_anchors", { pdf_id: pdfId, page: currentPage })
       .then(setAnchors)
       .catch(() => setAnchors([]));
   }, [pdfId, currentPage]);
@@ -520,10 +521,16 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
 
         {/* Main scroll container with all page placeholders */}
         <ResizablePanel defaultSize={100} minSize={15}>
-          <div
-            ref={containerRef}
-            className="h-full overflow-auto flex flex-col items-center gap-4 py-4 px-2 bg-muted/10"
-          >
+          <div className="relative h-full">
+            {selectionMode && (
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm font-medium shadow-lg pointer-events-none">
+                Dessinez un rectangle sur la page
+              </div>
+            )}
+            <div
+              ref={containerRef}
+              className="h-full overflow-auto flex flex-col items-center gap-4 py-4 px-2 bg-muted/10"
+            >
             {pageCount > 0 && pageSize ? (
               <>
                 {Array.from({ length: pageCount }, (_, i) => i + 1).map((pageNum) => {
@@ -549,8 +556,9 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                         else canvasRefs.current.delete(pageNum);
                       }}
                       onAnnotationClick={onAnnotationClick}
-                      onSelectionComplete={(rect) => {
+                      onSelectionComplete={(rect, pageNum) => {
                         setPendingSelection(rect);
+                        setPendingPage(pageNum);
                         setAnchorModalOpen(true);
                         setSelectionMode(false);
                       }}
@@ -563,6 +571,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                 Loading PDF...
               </div>
             )}
+            </div>
           </div>
         </ResizablePanel>
 
@@ -588,7 +597,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
             open={anchorModalOpen}
             onClose={() => setAnchorModalOpen(false)}
             pdfId={pdfId}
-            page={currentPage}
+            page={pendingPage}
             selection={pendingSelection}
             onAnchorCreated={(anchorId: string) => {
               setCreatedAnchorId(anchorId);

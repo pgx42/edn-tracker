@@ -3,14 +3,14 @@ import type { PdfDocument } from "@/lib/types";
 
 interface PdfState {
   documents: PdfDocument[];
-  activePdfId: number | null;
+  activePdfId: string | null;
   currentPage: number;
   zoom: number;
   isLoading: boolean;
   error: string | null;
 
   setDocuments: (docs: PdfDocument[]) => void;
-  setActivePdf: (id: number | null) => void;
+  setActivePdf: (id: string | null) => void;
   setCurrentPage: (page: number) => void;
   setZoom: (zoom: number) => void;
   setLoading: (loading: boolean) => void;

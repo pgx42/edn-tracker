@@ -22,7 +22,7 @@ export interface PageViewProps {
   selectionMode: boolean;
   canvasRef: (el: HTMLCanvasElement | null) => void;
   onAnnotationClick?: (annotation: Annotation) => void;
-  onSelectionComplete: (rect: SelectionRect) => void;
+  onSelectionComplete: (rect: SelectionRect, pageNum: number) => void;
 }
 
 export const PageView: React.FC<PageViewProps> = ({
@@ -72,12 +72,12 @@ export const PageView: React.FC<PageViewProps> = ({
               pageHeight={cssHeight}
             />
           )}
-          {pdfId !== null && cssWidth > 0 && cssHeight > 0 && isCurrent && (
+          {pdfId !== null && cssWidth > 0 && cssHeight > 0 && isVisible && (
             <AnchorSelectionLayer
               active={selectionMode}
               pageWidth={cssWidth}
               pageHeight={cssHeight}
-              onSelectionComplete={onSelectionComplete}
+              onSelectionComplete={(rect) => onSelectionComplete(rect, pageNum)}
             />
           )}
         </>
