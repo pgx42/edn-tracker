@@ -13,7 +13,7 @@ import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizablePanelResizeHandle,
-  type PanelImperativeHandle,
+  usePanelRef,
 } from "@/components/ui/resizable";
 import { invoke } from "@tauri-apps/api/core";
 import { Loader2, AlertCircle } from "lucide-react";
@@ -84,8 +84,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   const [createdAnchorId, setCreatedAnchorId] = React.useState<string | null>(null);
 
   const containerRef = React.useRef<HTMLDivElement>(null);
-  const thumbPanelRef = React.useRef<PanelImperativeHandle>(null);
-  const backlinksPanelRef = React.useRef<PanelImperativeHandle>(null);
+  const thumbPanelRef = usePanelRef();
+  const backlinksPanelRef = usePanelRef();
   const canvasRefs = React.useRef<Map<number, HTMLCanvasElement>>(new Map());
   const activeRenderTasks = React.useRef<Map<number, RenderTask>>(new Map());
   const loadTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -480,22 +480,16 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         onZoomOut={handleZoomOut}
         onToggleSelection={() => setSelectionMode(!selectionMode)}
         onToggleBacklinks={() => {
-          if (backlinksPanelRef.current?.isCollapsed()) {
-            backlinksPanelRef.current?.expand();
-            setShowBacklinks(true);
-          } else {
-            backlinksPanelRef.current?.collapse();
-            setShowBacklinks(false);
-          }
+          const p = backlinksPanelRef.current;
+          if (!p) return;
+          if (p.isCollapsed()) { p.expand(); setShowBacklinks(true); }
+          else { p.collapse(); setShowBacklinks(false); }
         }}
         onToggleThumbnails={() => {
-          if (thumbPanelRef.current?.isCollapsed()) {
-            thumbPanelRef.current?.expand();
-            setShowThumbnails(true);
-          } else {
-            thumbPanelRef.current?.collapse();
-            setShowThumbnails(false);
-          }
+          const p = thumbPanelRef.current;
+          if (!p) return;
+          if (p.isCollapsed()) { p.expand(); setShowThumbnails(true); }
+          else { p.collapse(); setShowThumbnails(false); }
         }}
         onBackToLibrary={onBackToLibrary}
       />
@@ -505,10 +499,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         <ResizablePanel
           panelRef={thumbPanelRef}
           collapsible
-          collapsedSize={0}
-          defaultSize={0}
-          minSize={7}
-          maxSize={20}
+          collapsedSize="0%"
+          defaultSize="15%"
+          minSize="5%"
+          maxSize="40%"
         >
           <div className="h-full border-r bg-muted/30 overflow-hidden">
             {pdfDoc && pageCount > 0 && (
@@ -525,7 +519,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         <ResizablePanelResizeHandle className="w-1 bg-border hover:bg-primary/30 transition-colors" />
 
         {/* Main scroll container with all page placeholders */}
-        <ResizablePanel defaultSize={100}>
+        <ResizablePanel defaultSize={100} minSize={15}>
           <div
             ref={containerRef}
             className="h-full overflow-auto flex flex-col items-center gap-4 py-4 px-2 bg-muted/10"
@@ -578,10 +572,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         <ResizablePanel
           panelRef={backlinksPanelRef}
           collapsible
-          collapsedSize={0}
-          defaultSize={0}
-          minSize={14}
-          maxSize={35}
+          collapsedSize="0%"
+          defaultSize="25%"
+          minSize="5%"
+          maxSize="50%"
         >
           {pdfId !== null && <BacklinksPanel pdfId={pdfId} pageNumber={currentPage} />}
         </ResizablePanel>
