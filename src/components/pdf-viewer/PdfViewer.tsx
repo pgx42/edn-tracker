@@ -104,7 +104,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
       setAnchors([]);
       return;
     }
-    invoke<Anchor[]>("list_anchors", { pdf_id: pdfId, page: currentPage })
+    invoke<Anchor[]>("list_anchors", { pdfId, page: currentPage })
       .then(setAnchors)
       .catch(() => setAnchors([]));
   }, [pdfId, currentPage]);
@@ -236,7 +236,14 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     }
   }, [zoomMode, customZoom, containerSize, pageSize]);
 
+  // Refs for wheel handler — avoid re-attaching on every zoom change
+  const zoomModeRef = React.useRef(zoomMode);
+  const effectiveScaleRef = React.useRef(effectiveScale);
+  React.useEffect(() => { zoomModeRef.current = zoomMode; }, [zoomMode]);
+  React.useEffect(() => { effectiveScaleRef.current = effectiveScale; }, [effectiveScale]);
+
   // Trackpad/wheel zoom (pinch-to-zoom on macOS via ctrlKey)
+  // Attached once to avoid the re-attach lag at every zoom step
   React.useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -247,27 +254,21 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
 
       e.preventDefault();
 
-      // Use refs to avoid stale closure
-      const currentZoomMode = zoomMode;
-      const currentCustomZoom = customZoom;
-      const currentEffectiveScale = effectiveScale;
-
-      // Calculate zoom step from wheel delta (negative = zoom in, positive = zoom out)
       const sensitivity = 0.005;
       const delta = -e.deltaY * sensitivity;
 
-      // Get base zoom level
-      const base = currentZoomMode === "custom" ? currentCustomZoom : currentEffectiveScale / DPI_SCALE;
-      const newZoom = Math.min(3, Math.max(0.5, base + delta));
-
+      setCustomZoom((prev) => {
+        const base = zoomModeRef.current === "custom" ? prev : effectiveScaleRef.current / DPI_SCALE;
+        return Math.min(3, Math.max(0.5, base + delta));
+      });
       setZoomMode("custom");
-      setCustomZoom(newZoom);
     };
 
     // Must use { passive: false } to allow preventDefault()
     el.addEventListener("wheel", handleWheel, { passive: false });
     return () => el.removeEventListener("wheel", handleWheel);
-  }, [zoomMode, customZoom, effectiveScale]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // attach once, reads fresh values via refs
 
   // Render a page to canvas
   const renderPage = React.useCallback(
@@ -582,7 +583,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
           panelRef={thumbPanelRef}
           collapsible
           collapsedSize="0%"
-          defaultSize="12%"
+          defaultSize="6%"
           minSize="5%"
           maxSize="40%"
         >
@@ -664,7 +665,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
           panelRef={backlinksPanelRef}
           collapsible
           collapsedSize="0%"
-          defaultSize="18%"
+          defaultSize="10%"
           minSize="5%"
           maxSize="50%"
         >
