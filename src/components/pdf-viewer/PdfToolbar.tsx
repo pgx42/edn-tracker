@@ -11,6 +11,8 @@ import {
   PanelRight,
   PanelRightOpen,
   ArrowLeft,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 export type ZoomMode = "fit-page" | "fit-width" | "custom";
@@ -24,6 +26,7 @@ export interface PdfToolbarProps {
   selectionMode: boolean;
   showBacklinks: boolean;
   showThumbnails: boolean;
+  showAnchors: boolean;
   hasPdfId: boolean;
   goToPageInput: string;
   onPageInputChange: (v: string) => void;
@@ -37,6 +40,7 @@ export interface PdfToolbarProps {
   onToggleSelection: () => void;
   onToggleBacklinks: () => void;
   onToggleThumbnails: () => void;
+  onToggleAnchors: () => void;
   onBackToLibrary?: () => void;
 }
 
@@ -47,6 +51,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
   selectionMode,
   showBacklinks,
   showThumbnails,
+  showAnchors,
   hasPdfId,
   goToPageInput,
   onPageInputChange,
@@ -60,6 +65,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
   onToggleSelection,
   onToggleBacklinks,
   onToggleThumbnails,
+  onToggleAnchors,
   onBackToLibrary,
 }) => {
   return (
@@ -148,6 +154,16 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
             title="Mark anchor"
           >
             <AnchorIcon className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onToggleAnchors}
+            className={showAnchors ? "bg-primary text-primary-foreground" : ""}
+            title="Show anchor highlights"
+          >
+            {showAnchors ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
           </Button>
 
           <Button

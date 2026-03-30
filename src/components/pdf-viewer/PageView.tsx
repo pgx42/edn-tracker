@@ -21,6 +21,7 @@ export interface PageViewProps {
   anchors: Anchor[];
   annotations: Annotation[];
   selectionMode: boolean;
+  showAnchors: boolean;
   ocrLines?: OcrLine[];
   canvasRef: (el: HTMLCanvasElement | null) => void;
   onAnnotationClick?: (annotation: Annotation) => void;
@@ -39,6 +40,7 @@ export const PageView: React.FC<PageViewProps> = ({
   anchors,
   annotations,
   selectionMode,
+  showAnchors,
   ocrLines,
   canvasRef,
   onAnnotationClick,
@@ -70,7 +72,7 @@ export const PageView: React.FC<PageViewProps> = ({
             pageWidth={cssWidth}
             pageHeight={cssHeight}
           />
-          {pdfId !== null && (
+          {pdfId !== null && showAnchors && (
             <AnchorHighlight
               anchors={anchors}
               pageNumber={pageNum}

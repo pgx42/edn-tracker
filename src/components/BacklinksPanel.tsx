@@ -20,8 +20,10 @@ import {
   Trash2,
   Link2,
   ExternalLink,
+  MapPin,
 } from "lucide-react";
 import { useNavigateToResource, type ResourceType as NavResourceType } from "@/hooks/useNavigateToResource";
+import type { Anchor } from "./pdf-viewer/AnchorCreationModal";
 
 export interface BackLink {
   id: number;
@@ -90,6 +92,7 @@ export const BacklinksPanel: React.FC<BacklinksPanelProps> = ({
   onNavigate,
 }) => {
   const [links, setLinks] = React.useState<BackLink[]>([]);
+  const [anchors, setAnchors] = React.useState<Anchor[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<BackLink | null>(null);
@@ -99,16 +102,24 @@ export const BacklinksPanel: React.FC<BacklinksPanelProps> = ({
   const fetchLinks = React.useCallback(async () => {
     if (pdfId === null) {
       setLinks([]);
+      setAnchors([]);
       return;
     }
     setIsLoading(true);
     setError(null);
     try {
-      const result = await invoke<BackLink[]>("get_backlinks", {
-        pdf_id: pdfId,
-        page: pageNumber,
-      });
-      setLinks(result);
+      const [linksResult, anchorsResult] = await Promise.all([
+        invoke<BackLink[]>("get_backlinks", {
+          pdf_id: pdfId,
+          page: pageNumber,
+        }),
+        invoke<Anchor[]>("list_anchors", {
+          pdfId,
+          page: pageNumber,
+        }),
+      ]);
+      setLinks(linksResult);
+      setAnchors(anchorsResult);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -180,10 +191,43 @@ export const BacklinksPanel: React.FC<BacklinksPanelProps> = ({
             <p className="text-xs text-destructive px-2 py-4">{error}</p>
           )}
 
-          {!isLoading && !error && links.length === 0 && (
+          {!isLoading && !error && links.length === 0 && anchors.length === 0 && (
             <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground text-center">
               <Link2 className="h-8 w-8 opacity-20" />
-              <p className="text-xs">Aucun lien pour cette page</p>
+              <p className="text-xs">Aucun lien ou ancrage pour cette page</p>
+            </div>
+          )}
+
+          {/* Anchors section */}
+          {!isLoading && anchors.length > 0 && (
+            <div className="mb-4 pb-4 border-b last:border-b-0">
+              <div className="flex items-center gap-1.5 px-1 mb-2">
+                <MapPin className="h-3.5 w-3.5 text-amber-400" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Ancrages
+                </span>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {anchors.length}
+                </span>
+              </div>
+              <ul className="space-y-0.5">
+                {anchors.map((anchor) => (
+                  <li key={anchor.id}>
+                    <div className="flex items-center gap-1.5 rounded px-1.5 py-1.5 hover:bg-accent transition-colors">
+                      <div className="flex-1 text-left min-w-0">
+                        <p className="text-xs font-medium truncate leading-snug">
+                          {anchor.label || "Sans label"}
+                        </p>
+                        {anchor.text_snippet && (
+                          <p className="text-xs text-muted-foreground truncate mt-0.5">
+                            "{anchor.text_snippet}"
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

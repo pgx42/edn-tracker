@@ -28,19 +28,14 @@ const TextLayer: React.FC<TextLayerProps> = ({ page, viewport }) => {
         div.removeChild(div.firstChild);
       }
 
-      // Create a text-specific viewport scaled to CSS (visual) size, not canvas size
-      // The canvas viewport includes DPI_SCALE, making it too large relative to the page div
-      // We need to render text at the visual/CSS scale
-      const textViewport = page.getViewport({ scale: viewport.scale / DPI_SCALE });
-
       textLayerInstance = new PdfTextLayerRenderer({
         textContentSource: textContent,
         container: div,
-        viewport: textViewport,
+        viewport,
       });
       try {
         await textLayerInstance.render();
-      } catch {
+      } catch (err) {
         // cancelled or error
       }
     };
@@ -65,13 +60,15 @@ const TextLayer: React.FC<TextLayerProps> = ({ page, viewport }) => {
         position: "absolute",
         top: 0,
         left: 0,
-        width: viewport.width / DPI_SCALE,
-        height: viewport.height / DPI_SCALE,
+        width: viewport.width,
+        height: viewport.height,
         lineHeight: 1,
         overflow: "hidden",
         opacity: 1,
         userSelect: "text",
+        WebkitUserSelect: "text",
         transformOrigin: "0 0",
+        zIndex: 2,
       }}
     />
   );
@@ -100,7 +97,9 @@ export const PageTextLayerWrapper: React.FC<PageTextLayerWrapperProps> = ({
         p.cleanup();
         return;
       }
-      const vp = p.getViewport({ scale });
+      // Create viewport at CSS scale (scale / DPI_SCALE) so TextLayer dimensions match parent
+      const cssScale = scale / DPI_SCALE;
+      const vp = p.getViewport({ scale: cssScale });
       setPage(p);
       setViewport(vp);
     };

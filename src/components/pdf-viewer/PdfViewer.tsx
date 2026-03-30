@@ -85,6 +85,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   const [anchors, setAnchors] = React.useState<Anchor[]>([]);
   const [showBacklinks, setShowBacklinks] = React.useState(false);
   const [showThumbnails, setShowThumbnails] = React.useState(false);
+  const [showAnchors, setShowAnchors] = React.useState(true);
   const [linkModalOpen, setLinkModalOpen] = React.useState(false);
   const [createdAnchorId, setCreatedAnchorId] = React.useState<string | null>(null);
 
@@ -545,6 +546,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         selectionMode={selectionMode}
         showBacklinks={showBacklinks}
         showThumbnails={showThumbnails}
+        showAnchors={showAnchors}
         hasPdfId={pdfId !== null}
         goToPageInput={goToPageInput}
         onPageInputChange={setGoToPageInput}
@@ -562,6 +564,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onToggleSelection={() => setSelectionMode(!selectionMode)}
+        onToggleAnchors={() => setShowAnchors(!showAnchors)}
         onToggleBacklinks={() => {
           const p = backlinksPanelRef.current;
           if (!p) return;
@@ -633,6 +636,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                       anchors={anchors}
                       annotations={annotations}
                       selectionMode={selectionMode}
+                      showAnchors={showAnchors}
                       ocrLines={ocrLines.get(pageNum)}
                       canvasRef={(el) => {
                         if (el) canvasRefs.current.set(pageNum, el);
