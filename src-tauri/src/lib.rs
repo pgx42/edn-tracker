@@ -60,6 +60,9 @@ pub fn run() {
             commands::errors::create_error,
             commands::errors::update_error,
             commands::errors::delete_error,
+            commands::comments::add_anchor_comment,
+            commands::comments::get_anchor_comments,
+            commands::comments::delete_anchor_comment,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -3,6 +3,7 @@ pub mod items;
 pub mod pdf;
 pub mod links;
 pub mod errors;
+pub mod comments;
 
 use serde::Serialize;
 use tauri::State;

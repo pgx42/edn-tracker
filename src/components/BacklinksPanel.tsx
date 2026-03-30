@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useNavigateToResource, type ResourceType as NavResourceType } from "@/hooks/useNavigateToResource";
 import type { Anchor } from "./pdf-viewer/AnchorCreationModal";
+import { AnchorCommentThread } from "./AnchorCommentThread";
 
 export interface BackLink {
   id: number;
@@ -213,17 +214,20 @@ export const BacklinksPanel: React.FC<BacklinksPanelProps> = ({
               <ul className="space-y-0.5">
                 {anchors.map((anchor) => (
                   <li key={anchor.id}>
-                    <div className="flex items-center gap-1.5 rounded px-1.5 py-1.5 hover:bg-accent transition-colors">
-                      <div className="flex-1 text-left min-w-0">
-                        <p className="text-xs font-medium truncate leading-snug">
-                          {anchor.label || "Sans label"}
-                        </p>
-                        {anchor.text_snippet && (
-                          <p className="text-xs text-muted-foreground truncate mt-0.5">
-                            "{anchor.text_snippet}"
+                    <div className="rounded px-1.5 py-1.5 hover:bg-accent transition-colors">
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex-1 text-left min-w-0">
+                          <p className="text-xs font-medium truncate leading-snug">
+                            {anchor.label || "Sans label"}
                           </p>
-                        )}
+                          {anchor.text_snippet && (
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">
+                              "{anchor.text_snippet}"
+                            </p>
+                          )}
+                        </div>
                       </div>
+                      <AnchorCommentThread anchorId={anchor.id} />
                     </div>
                   </li>
                 ))}
