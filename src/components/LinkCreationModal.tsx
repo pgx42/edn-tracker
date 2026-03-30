@@ -262,10 +262,19 @@ export const LinkCreationModal: React.FC<LinkCreationModalProps> = ({
     setIsCreating(true);
     setError(null);
     try {
+      // Map resource kind to target_type (pdf resources link to anchors)
+      const targetTypeMap: Record<string, string> = {
+        pdf: "anchor",
+        item: "item",
+        error: "error",
+        anki_card: "anki_card",
+      };
+      const mappedTargetType = targetTypeMap[selected.kind] || selected.kind;
+
       const linkId = await invoke<string>("create_link", {
         sourceAnchorId,
         targetAnchorId: null,
-        targetType: selected.kind,
+        targetType: mappedTargetType,
         targetId: selected.id,
         linkType,
       });
@@ -274,11 +283,11 @@ export const LinkCreationModal: React.FC<LinkCreationModalProps> = ({
       if (bidirectional && selected.kind === "pdf") {
         try {
           await invoke<string>("create_link", {
-            source_anchor_id: selected.id,
-            target_anchor_id: sourceAnchorId,
-            target_type: null,
-            target_id: null,
-            link_type: linkType,
+            sourceAnchorId: selected.id,
+            targetAnchorId: sourceAnchorId,
+            targetType: "anchor",
+            targetId: null,
+            linkType,
           });
         } catch {
           // Non-fatal: forward link was created

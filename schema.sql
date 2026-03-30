@@ -166,6 +166,20 @@ CREATE TABLE IF NOT EXISTS link_suggestions (
     FOREIGN KEY (source_anchor_id) REFERENCES anchors(id) ON DELETE CASCADE
 );
 
+-- Anchor discussion: thread of comments on an anchor
+CREATE TABLE IF NOT EXISTS anchor_comments (
+    id TEXT PRIMARY KEY,          -- UUID
+    anchor_id TEXT NOT NULL,
+    author TEXT NOT NULL,         -- username or 'Anonymous'
+    content TEXT NOT NULL,        -- comment text
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (anchor_id) REFERENCES anchors(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_anchor_comments_anchor ON anchor_comments(anchor_id, created_at);
+
 -- ============================================================================
 -- 4. PDF ANNOTATIONS & MARKUP
 -- ============================================================================
