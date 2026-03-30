@@ -20,6 +20,7 @@ export interface PdfToolbarProps {
   pageCount: number;
   zoomMode: ZoomMode;
   customZoom: number;
+  displayZoom: number;
   selectionMode: boolean;
   showBacklinks: boolean;
   showThumbnails: boolean;
@@ -42,7 +43,7 @@ export interface PdfToolbarProps {
 export const PdfToolbar: React.FC<PdfToolbarProps> = ({
   currentPage,
   pageCount,
-  customZoom,
+  displayZoom,
   selectionMode,
   showBacklinks,
   showThumbnails,
@@ -117,7 +118,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
         <ZoomOut className="h-4 w-4" />
       </Button>
 
-      <span className="text-xs font-mono w-8 text-center">{Math.round(customZoom * 100)}%</span>
+      <span className="text-xs font-mono w-8 text-center">{Math.round(displayZoom * 100)}%</span>
 
       <Button variant="outline" size="sm" onClick={onZoomIn} title="Zoom in">
         <ZoomIn className="h-4 w-4" />

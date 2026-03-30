@@ -8,6 +8,8 @@ interface TextLayerProps {
   viewport: pdfjs.PageViewport;
 }
 
+const DPI_SCALE = 150 / 96;
+
 const TextLayer: React.FC<TextLayerProps> = ({ page, viewport }) => {
   const divRef = React.useRef<HTMLDivElement>(null);
 
@@ -26,10 +28,15 @@ const TextLayer: React.FC<TextLayerProps> = ({ page, viewport }) => {
         div.removeChild(div.firstChild);
       }
 
+      // Create a text-specific viewport scaled to CSS (visual) size, not canvas size
+      // The canvas viewport includes DPI_SCALE, making it too large relative to the page div
+      // We need to render text at the visual/CSS scale
+      const textViewport = page.getViewport({ scale: viewport.scale / DPI_SCALE });
+
       textLayerInstance = new PdfTextLayerRenderer({
         textContentSource: textContent,
         container: div,
-        viewport,
+        viewport: textViewport,
       });
       try {
         await textLayerInstance.render();
@@ -58,8 +65,8 @@ const TextLayer: React.FC<TextLayerProps> = ({ page, viewport }) => {
         position: "absolute",
         top: 0,
         left: 0,
-        width: viewport.width,
-        height: viewport.height,
+        width: viewport.width / DPI_SCALE,
+        height: viewport.height / DPI_SCALE,
         lineHeight: 1,
         overflow: "hidden",
         opacity: 1,

@@ -66,16 +66,20 @@ export const AnchorCreationModal: React.FC<AnchorCreationModalProps> = ({
     setError(null);
 
     try {
-      const anchorId = await invoke<string>("create_anchor", {
+      const trimmedSnippet = textSnippet.trim();
+      const params: Record<string, any> = {
         pdf_id: pdfId,
-        page,
-        label: label.trim(),
-        text_snippet: textSnippet.trim() || null,
+        page: page,
         x: selection.x,
         y: selection.y,
         w: selection.width,
         h: selection.height,
-      });
+        label: label.trim(),
+      };
+      if (trimmedSnippet) {
+        params.text_snippet = trimmedSnippet;
+      }
+      const anchorId = await invoke<string>("create_anchor", params);
       onAnchorCreated(anchorId);
       onClose();
     } catch (err) {

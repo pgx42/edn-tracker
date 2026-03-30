@@ -11,6 +11,15 @@ use std::path::Path;
 
 // ─── Public Types ────────────────────────────────────────────────────────────
 
+/// A single recognized text line from OCR with bounding box.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OcrLine {
+    pub text: String,
+    pub confidence: f32,
+    /// Normalized bounding box: [x, y, width, height] where origin is top-left, 0.0–1.0.
+    pub bbox: [f32; 4],
+}
+
 /// A single page of extracted text.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageText {
@@ -53,6 +62,8 @@ pub struct OcrResult {
     pub text: String,
     pub confidence: f32,
     pub source: TextSource,
+    /// Individual recognized lines with bounding boxes.
+    pub lines: Vec<OcrLine>,
 }
 
 // Threshold: pages with fewer characters than this are considered scanned.
@@ -327,6 +338,7 @@ mod vision {
         let count: usize = if observations.is_null() { 0 } else { msg_send![observations, count] };
 
         let mut texts: Vec<String> = Vec::with_capacity(count);
+        let mut lines: Vec<super::OcrLine> = Vec::with_capacity(count);
         let mut total_confidence: f32 = 0.0;
         let mut confidence_count: u32 = 0;
 
@@ -340,11 +352,27 @@ mod vision {
             let ns_string: *mut AnyObject = msg_send![top, string];
             let c_str: *const std::os::raw::c_char = msg_send![ns_string, UTF8String];
             let text = std::ffi::CStr::from_ptr(c_str).to_string_lossy().into_owned();
-            texts.push(text);
+            texts.push(text.clone());
 
             let conf: f32 = msg_send![top, confidence];
             total_confidence += conf;
             confidence_count += 1;
+
+            // Extract bounding box from observation
+            // Apple Vision: boundingBox origin is bottom-left, normalized 0.0-1.0
+            use objc2_foundation::NSRect;
+            let bbox: NSRect = msg_send![obs, boundingBox];
+            // Convert to top-left origin (flip y-axis)
+            let x = bbox.origin.x as f32;
+            let y = 1.0 - (bbox.origin.y as f32 + bbox.size.height as f32);
+            let w = bbox.size.width as f32;
+            let h = bbox.size.height as f32;
+
+            lines.push(super::OcrLine {
+                text,
+                confidence: conf,
+                bbox: [x, y, w, h],
+            });
         }
 
         let avg_confidence = if confidence_count > 0 {
@@ -362,6 +390,7 @@ mod vision {
             text: texts.join("\n"),
             confidence: avg_confidence,
             source: TextSource::AppleVision,
+            lines,
         })
     }
 }

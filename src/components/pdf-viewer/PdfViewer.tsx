@@ -73,6 +73,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   const [pageSize, setPageSize] = React.useState<{ width: number; height: number } | null>(null);
   const [visiblePages, setVisiblePages] = React.useState<Set<number>>(new Set());
 
+  // OCR state
+  const [isScanned, setIsScanned] = React.useState(false);
+  const [ocrLines, setOcrLines] = React.useState<Map<number, any[]>>(new Map());
+
   // Anchor & backlinks state
   const [selectionMode, setSelectionMode] = React.useState(false);
   const [pendingSelection, setPendingSelection] = React.useState<SelectionRect | null>(null);
@@ -179,6 +183,21 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         } catch (err) {
           console.error("Error getting page 1 dimensions:", err);
         }
+
+        // Detect if PDF is scanned (background task)
+        if (pdfPath && !pdfPath.startsWith("http")) {
+          invoke<{ is_scanned: boolean; avg_chars_per_page: number }>("detect_scan_type_cmd", {
+            path: pdfPath,
+          })
+            .then((result) => {
+              console.log("Scan detection:", result);
+              setIsScanned(result.is_scanned);
+            })
+            .catch((err) => {
+              console.error("Error detecting scan type:", err);
+              setIsScanned(false);
+            });
+        }
       } catch (err) {
         if (!cancelled) {
           clearTimeout(loadTimeoutRef.current!);
@@ -216,6 +235,39 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         return customZoom * DPI_SCALE;
     }
   }, [zoomMode, customZoom, containerSize, pageSize]);
+
+  // Trackpad/wheel zoom (pinch-to-zoom on macOS via ctrlKey)
+  React.useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // Only intercept pinch-to-zoom (ctrlKey) or explicit ctrl+scroll
+      if (!e.ctrlKey) return;
+
+      e.preventDefault();
+
+      // Use refs to avoid stale closure
+      const currentZoomMode = zoomMode;
+      const currentCustomZoom = customZoom;
+      const currentEffectiveScale = effectiveScale;
+
+      // Calculate zoom step from wheel delta (negative = zoom in, positive = zoom out)
+      const sensitivity = 0.005;
+      const delta = -e.deltaY * sensitivity;
+
+      // Get base zoom level
+      const base = currentZoomMode === "custom" ? currentCustomZoom : currentEffectiveScale / DPI_SCALE;
+      const newZoom = Math.min(3, Math.max(0.5, base + delta));
+
+      setZoomMode("custom");
+      setCustomZoom(newZoom);
+    };
+
+    // Must use { passive: false } to allow preventDefault()
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [zoomMode, customZoom, effectiveScale]);
 
   // Render a page to canvas
   const renderPage = React.useCallback(
@@ -356,6 +408,30 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     });
   }, [visiblePages, renderPage]);
 
+  // Auto-OCR for visible scanned pages
+  React.useEffect(() => {
+    if (!isScanned || !pdfId) return;
+
+    visiblePages.forEach((pageNum) => {
+      // Skip if already OCR'd
+      if (ocrLines.has(pageNum)) return;
+
+      console.log(`[OCR effect] Triggering OCR for page ${pageNum}`);
+
+      invoke<{ text: string; confidence: number; source: string; lines: any[] }>("ocr_page_cmd", {
+        pdf_id: pdfId,
+        page: pageNum,
+      })
+        .then((result) => {
+          console.log(`[OCR effect] OCR complete for page ${pageNum}:`, result.lines.length, "lines");
+          setOcrLines((prev) => new Map(prev).set(pageNum, result.lines));
+        })
+        .catch((err) => {
+          console.error(`[OCR effect] OCR failed for page ${pageNum}:`, err);
+        });
+    });
+  }, [isScanned, pdfId, visiblePages, ocrLines]);
+
   // IntersectionObserver for tracking current page (topmost visible)
   React.useEffect(() => {
     if (!pdfDoc || !containerRef.current) return;
@@ -408,8 +484,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     if (zoomMode === "custom") {
       setCustomZoom((prev) => Math.min(3, prev + 0.1));
     } else {
+      // When exiting fit mode, capture the current effective zoom and step from there
+      const base = effectiveScale / DPI_SCALE;
       setZoomMode("custom");
-      setCustomZoom(1.2);
+      setCustomZoom(Math.min(3, base + 0.1));
     }
   };
 
@@ -417,8 +495,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     if (zoomMode === "custom") {
       setCustomZoom((prev) => Math.max(0.5, prev - 0.1));
     } else {
+      // When exiting fit mode, capture the current effective zoom and step from there
+      const base = effectiveScale / DPI_SCALE;
       setZoomMode("custom");
-      setCustomZoom(0.8);
+      setCustomZoom(Math.max(0.5, base - 0.1));
     }
   };
 
@@ -460,6 +540,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         pageCount={pageCount}
         zoomMode={zoomMode}
         customZoom={customZoom}
+        displayZoom={effectiveScale / DPI_SCALE}
         selectionMode={selectionMode}
         showBacklinks={showBacklinks}
         showThumbnails={showThumbnails}
@@ -501,7 +582,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
           panelRef={thumbPanelRef}
           collapsible
           collapsedSize="0%"
-          defaultSize="15%"
+          defaultSize="12%"
           minSize="5%"
           maxSize="40%"
         >
@@ -551,6 +632,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                       anchors={anchors}
                       annotations={annotations}
                       selectionMode={selectionMode}
+                      ocrLines={ocrLines.get(pageNum)}
                       canvasRef={(el) => {
                         if (el) canvasRefs.current.set(pageNum, el);
                         else canvasRefs.current.delete(pageNum);
@@ -582,7 +664,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
           panelRef={backlinksPanelRef}
           collapsible
           collapsedSize="0%"
-          defaultSize="25%"
+          defaultSize="18%"
           minSize="5%"
           maxSize="50%"
         >

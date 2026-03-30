@@ -100,10 +100,17 @@ pub async fn ocr_page_cmd(
     // Persist to database (upsert into pdf_pages).
     persist_page_text(pool.inner(), &pdf_id, page, &ocr).await?;
 
+    let lines = ocr.lines.into_iter().map(|line| OcrLineResponse {
+        text: line.text,
+        confidence: line.confidence,
+        bbox: line.bbox,
+    }).collect();
+
     Ok(OcrPageResponse {
         text: ocr.text,
         confidence: ocr.confidence,
         source: source_to_str(&ocr.source).to_owned(),
+        lines,
     })
 }
 
@@ -143,6 +150,15 @@ async fn persist_page_text(
     Ok(())
 }
 
+/// A single OCR line with bounding box.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct OcrLineResponse {
+    pub text: String,
+    pub confidence: f32,
+    /// Normalized bounding box [x, y, width, height].
+    pub bbox: [f32; 4],
+}
+
 /// Response type for `ocr_page` command.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct OcrPageResponse {
@@ -150,6 +166,8 @@ pub struct OcrPageResponse {
     pub confidence: f32,
     /// "apple_vision" | "tesseract"
     pub source: String,
+    /// Individual recognized lines with bounding boxes.
+    pub lines: Vec<OcrLineResponse>,
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

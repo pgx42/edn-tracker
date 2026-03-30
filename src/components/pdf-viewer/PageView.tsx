@@ -4,6 +4,7 @@ import { AnnotationLayer, type Annotation } from "./AnnotationLayer";
 import { AnchorHighlight } from "./AnchorHighlight";
 import { AnchorSelectionLayer, type SelectionRect } from "./AnchorSelectionLayer";
 import { PageTextLayerWrapper } from "./PageTextLayer";
+import { OcrTextLayer, type OcrLine } from "./OcrTextLayer";
 import type { Anchor } from "./AnchorCreationModal";
 
 const DPI_SCALE = 150 / 96;
@@ -20,6 +21,7 @@ export interface PageViewProps {
   anchors: Anchor[];
   annotations: Annotation[];
   selectionMode: boolean;
+  ocrLines?: OcrLine[];
   canvasRef: (el: HTMLCanvasElement | null) => void;
   onAnnotationClick?: (annotation: Annotation) => void;
   onSelectionComplete: (rect: SelectionRect, pageNum: number) => void;
@@ -37,6 +39,7 @@ export const PageView: React.FC<PageViewProps> = ({
   anchors,
   annotations,
   selectionMode,
+  ocrLines,
   canvasRef,
   onAnnotationClick,
   onSelectionComplete,
@@ -56,6 +59,9 @@ export const PageView: React.FC<PageViewProps> = ({
             style={{ width: "100%", height: "100%", display: "block" }}
           />
           {pdfDoc && <PageTextLayerWrapper pdfDoc={pdfDoc} pageNum={pageNum} scale={effectiveScale} />}
+          {ocrLines && ocrLines.length > 0 && (
+            <OcrTextLayer lines={ocrLines} pageWidth={cssWidth} pageHeight={cssHeight} />
+          )}
           <AnnotationLayer
             pageNumber={pageNum}
             annotations={annotations}
