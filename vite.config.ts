@@ -16,7 +16,7 @@ export default defineConfig(async () => ({
   clearScreen: false,
 
   server: {
-    port: 5173,
+    port: 5174,
     // Tauri expects a fixed port; fail if not available
     strictPort: true,
     // Enable HTTPS if TAURI_DEV_HOST is set
