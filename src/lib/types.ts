@@ -1,13 +1,25 @@
 // Core domain types for EDN Tracker
 
 export interface PdfDocument {
-  id: number;
-  filename: string;
-  path: string;
-  pageCount: number | null;
-  importedAt: string;
-  processed: boolean;
-  docType?: "college" | "poly" | "lca" | "annale";
+  id: string;
+  title: string;
+  file_path: string;
+  doc_type?: "college" | "poly" | "lca" | "annale" | "other";
+  num_pages: number;
+  created_at?: string;
+  has_native_text?: boolean;
+  is_scanned?: boolean;
+  text_extraction_complete?: boolean;
+  ocr_complete?: boolean;
+}
+
+// Frontend display version (alias for compatibility)
+export interface PdfDocumentDisplay extends PdfDocument {
+  filename?: string; // alias for title
+  path?: string; // alias for file_path
+  pageCount?: number; // alias for num_pages
+  importedAt?: string; // alias for created_at
+  processed?: boolean; // alias for text_extraction_complete
   specialty?: string;
   thumbnailUrl?: string;
 }
@@ -31,17 +43,15 @@ export interface EdnItem {
 }
 
 export interface ErrorEntry {
-  id: number;
+  id: string;
   title: string;
-  itemId: number | null;
-  pdfId: number | null;
-  errorType: "concept_confusion" | "knowledge_gap" | "calculation_error" | "application_error" | "memory_error";
+  item_id: number | null;
+  source_anchor_id: string | null;
+  error_type: "concept_confusion" | "knowledge_gap" | "calculation" | "recall";
   severity: "minor" | "medium" | "critical";
-  description: string;
-  context: string | null;
-  suggestion: string | null;
-  resolved: boolean;
-  createdAt: string;
+  description: string | null;
+  created_at: string | null;
+  resolved_at: string | null;
 }
 
 export interface StudyGoal {

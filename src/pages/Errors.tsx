@@ -1,12 +1,12 @@
 import * as React from "react";
-import { Search, Plus, CheckCircle, AlertTriangle, AlertCircle } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { Search, Plus, CheckCircle, AlertTriangle, AlertCircle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { ErrorCreationModal } from "@/components/ErrorCreationModal";
-import { mockErrors } from "@/lib/mockData";
 import type { ErrorEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -19,13 +19,14 @@ const severityConfig: Record<string, { label: string; color: string; icon: React
 const errorTypeLabels: Record<string, string> = {
   concept_confusion: "Confusion conceptuelle",
   knowledge_gap: "Lacune de connaissance",
-  calculation_error: "Erreur de calcul",
-  application_error: "Erreur d'application",
-  memory_error: "Erreur de mémorisation",
+  calculation: "Erreur de calcul",
+  recall: "Erreur de mémorisation",
 };
 
 export function Errors() {
-  const [errors, setErrors] = React.useState<ErrorEntry[]>(mockErrors);
+  const [errors, setErrors] = React.useState<ErrorEntry[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState("all");
   const [severityFilter, setSeverityFilter] = React.useState("all");
@@ -33,36 +34,72 @@ export function Errors() {
   const [selectedError, setSelectedError] = React.useState<ErrorEntry | null>(null);
   const [showCreateModal, setShowCreateModal] = React.useState(false);
 
+  // Load errors from backend
+  React.useEffect(() => {
+    const loadErrors = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const result = await invoke<ErrorEntry[]>("list_errors");
+        setErrors(result);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadErrors();
+  }, []);
+
   const filtered = React.useMemo(() => {
     return errors.filter((err) => {
       const q = search.toLowerCase();
-      const matchSearch = !q || err.title.toLowerCase().includes(q) || err.description.toLowerCase().includes(q);
-      const matchType = typeFilter === "all" || err.errorType === typeFilter;
+      const descText = err.description ?? "";
+      const matchSearch = !q || err.title.toLowerCase().includes(q) || descText.toLowerCase().includes(q);
+      const matchType = typeFilter === "all" || err.error_type === typeFilter;
       const matchSeverity = severityFilter === "all" || err.severity === severityFilter;
+      const isResolved = err.resolved_at !== null;
       const matchStatus = statusFilter === "all"
         ? true
-        : statusFilter === "open" ? !err.resolved : err.resolved;
+        : statusFilter === "open" ? !isResolved : isResolved;
       return matchSearch && matchType && matchSeverity && matchStatus;
     });
   }, [errors, search, typeFilter, severityFilter, statusFilter]);
 
-  const openCount = errors.filter((e) => !e.resolved).length;
-  const criticalCount = errors.filter((e) => e.severity === "critical" && !e.resolved).length;
+  const openCount = errors.filter((e) => e.resolved_at === null).length;
+  const criticalCount = errors.filter((e) => e.severity === "critical" && e.resolved_at === null).length;
 
-  const handleResolve = (id: number) => {
-    setErrors((prev) => prev.map((e) => e.id === id ? { ...e, resolved: !e.resolved } : e));
-    if (selectedError?.id === id) {
-      setSelectedError((prev) => prev ? { ...prev, resolved: !prev.resolved } : null);
+  const handleResolve = async (id: string) => {
+    try {
+      const current = errors.find((e) => e.id === id);
+      if (!current) return;
+      const isResolved = current.resolved_at !== null;
+      const updated = await invoke<ErrorEntry>("update_error", {
+        id,
+        resolved: !isResolved,
+      });
+      setErrors((prev) => prev.map((e) => e.id === id ? updated : e));
+      if (selectedError?.id === id) {
+        setSelectedError(updated);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
-  const handleCreate = (err: Omit<ErrorEntry, "id" | "createdAt">) => {
-    const newErr: ErrorEntry = {
-      ...err,
-      id: errors.length + 1,
-      createdAt: new Date().toISOString().split("T")[0],
-    };
-    setErrors((prev) => [newErr, ...prev]);
+  const handleCreate = async (err: { title: string; description: string; error_type: string; severity: string; item_id?: number | null }) => {
+    try {
+      const newErr = await invoke<ErrorEntry>("create_error", {
+        title: err.title,
+        description: err.description,
+        error_type: err.error_type,
+        severity: err.severity,
+        item_id: err.item_id || null,
+      });
+      setErrors((prev) => [newErr, ...prev]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   return (
@@ -117,9 +154,8 @@ export function Errors() {
                 <SelectItem value="all">Tous les types</SelectItem>
                 <SelectItem value="concept_confusion">Confusion</SelectItem>
                 <SelectItem value="knowledge_gap">Lacune</SelectItem>
-                <SelectItem value="calculation_error">Calcul</SelectItem>
-                <SelectItem value="application_error">Application</SelectItem>
-                <SelectItem value="memory_error">Mémorisation</SelectItem>
+                <SelectItem value="calculation">Calcul</SelectItem>
+                <SelectItem value="recall">Mémorisation</SelectItem>
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -137,7 +173,17 @@ export function Errors() {
 
         {/* Error list */}
         <div className="flex-1 overflow-y-auto">
-          {filtered.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <p className="text-sm">Chargement des erreurs...</p>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center h-48 gap-2 text-red-400">
+              <AlertCircle className="h-8 w-8" />
+              <p className="text-sm">{error}</p>
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
               <Search className="h-8 w-8 opacity-30" />
               <p className="text-sm">Aucune erreur trouvée</p>
@@ -166,21 +212,23 @@ export function Errors() {
                       <div className="flex items-center gap-2 justify-between">
                         <p className={cn(
                           "text-sm font-medium truncate",
-                          err.resolved && "line-through text-muted-foreground"
+                          err.resolved_at !== null && "line-through text-muted-foreground"
                         )}>
                           {err.title}
                         </p>
-                        {err.resolved && <CheckCircle className="h-3.5 w-3.5 text-green-400 shrink-0" />}
+                        {err.resolved_at !== null && <CheckCircle className="h-3.5 w-3.5 text-green-400 shrink-0" />}
                       </div>
                       <div className="flex items-center gap-2 mt-1">
                         <Badge className={cn("border text-xs py-0", sev.color)}>
                           {sev.label}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          {errorTypeLabels[err.errorType]}
+                          {errorTypeLabels[err.error_type]}
                         </span>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">{err.createdAt}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {err.created_at ? new Date(err.created_at).toLocaleDateString("fr-FR") : ""}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -197,16 +245,18 @@ export function Errors() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold">{selectedError.title}</h2>
-                <p className="text-sm text-muted-foreground mt-1">{selectedError.createdAt}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {selectedError.created_at ? new Date(selectedError.created_at).toLocaleDateString("fr-FR") : ""}
+                </p>
               </div>
               <Button
-                variant={selectedError.resolved ? "outline" : "default"}
+                variant={selectedError.resolved_at !== null ? "outline" : "default"}
                 size="sm"
                 onClick={() => handleResolve(selectedError.id)}
                 className="gap-1.5 shrink-0"
               >
                 <CheckCircle className="h-4 w-4" />
-                {selectedError.resolved ? "Ré-ouvrir" : "Marquer résolu"}
+                {selectedError.resolved_at !== null ? "Ré-ouvrir" : "Marquer résolu"}
               </Button>
             </div>
 
@@ -215,9 +265,9 @@ export function Errors() {
                 {severityConfig[selectedError.severity].label}
               </Badge>
               <Badge variant="secondary">
-                {errorTypeLabels[selectedError.errorType]}
+                {errorTypeLabels[selectedError.error_type]}
               </Badge>
-              {selectedError.resolved && (
+              {selectedError.resolved_at !== null && (
                 <Badge className="bg-green-500/20 text-green-400 border-green-500/30 border">
                   Résolu
                 </Badge>
@@ -226,42 +276,18 @@ export function Errors() {
 
             <Separator />
 
-            <div>
-              <h3 className="text-sm font-semibold mb-2">Description</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">{selectedError.description}</p>
-            </div>
-
-            {selectedError.context && (
+            {selectedError.description && (
               <div>
-                <h3 className="text-sm font-semibold mb-2">Contexte</h3>
-                <p className="text-sm text-muted-foreground bg-muted/50 rounded-md p-3 leading-relaxed">
-                  {selectedError.context}
-                </p>
+                <h3 className="text-sm font-semibold mb-2">Description</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{selectedError.description}</p>
               </div>
             )}
 
-            {selectedError.suggestion && (
-              <div>
-                <h3 className="text-sm font-semibold mb-2 flex items-center gap-1">
-                  <CheckCircle className="h-4 w-4 text-green-400" />
-                  Comment retenir
-                </h3>
-                <p className="text-sm text-green-200/80 bg-green-500/10 rounded-md p-3 border border-green-500/20 leading-relaxed">
-                  {selectedError.suggestion}
-                </p>
-              </div>
-            )}
-
-            {(selectedError.itemId || selectedError.pdfId) && (
+            {selectedError.item_id && (
               <div>
                 <h3 className="text-sm font-semibold mb-2">Références</h3>
                 <div className="flex gap-2">
-                  {selectedError.itemId && (
-                    <Badge variant="outline">Item #{selectedError.itemId}</Badge>
-                  )}
-                  {selectedError.pdfId && (
-                    <Badge variant="outline">PDF #{selectedError.pdfId}</Badge>
-                  )}
+                  <Badge variant="outline">Item #{selectedError.item_id}</Badge>
                 </div>
               </div>
             )}

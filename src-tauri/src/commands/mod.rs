@@ -1,13 +1,13 @@
 pub mod ocr;
 pub mod items;
+pub mod pdf;
+pub mod links;
+pub mod errors;
 
 use serde::Serialize;
 use tauri::State;
 
 use crate::db::DbPool;
-
-// Re-export item commands for registration
-pub use items::{get_specialties, get_items, get_item, count_items};
 
 #[derive(Serialize)]
 pub struct HealthResponse {

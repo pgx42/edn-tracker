@@ -1,12 +1,12 @@
 import * as React from "react";
-import { Search, Filter, SortAsc } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { Search, Filter, SortAsc, Loader2, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ItemDetailModal } from "@/components/ItemDetailModal";
-import { mockItems, SPECIALTIES } from "@/lib/mockData";
 import type { EdnItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,10 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 };
 
 export function Items() {
+  const [items, setItems] = React.useState<EdnItem[]>([]);
+  const [specialties, setSpecialties] = React.useState<Array<{ id: string; name: string }>>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
   const [specialty, setSpecialty] = React.useState("all");
   const [rank, setRank] = React.useState("all");
@@ -30,8 +34,49 @@ export function Items() {
   const [selectedItem, setSelectedItem] = React.useState<EdnItem | null>(null);
   const [sortField, setSortField] = React.useState<"code" | "rank" | "specialty">("code");
 
+  // Load items from backend
+  React.useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const [loadedItems, loadedSpecialties] = await Promise.all([
+          invoke<Array<any>>("get_items"),
+          invoke<Array<{ id: string; name: string }>>("get_specialties"),
+        ]);
+
+        // Map backend items to frontend format (fill missing fields with defaults)
+        const mappedItems: EdnItem[] = loadedItems.map((item: any) => ({
+          id: item.id,
+          code: item.code,
+          title: item.title,
+          description: item.description ?? null,
+          specialty: loadedSpecialties.find((s) => s.id === item.specialty_id)?.name ?? "Unknown",
+          rank: item.rank as "A" | "B" | "C",
+          status: "not_started" as const, // Backend doesn't track status yet
+          category: null,
+          subcategory: null,
+          difficulty: 3,
+          notes: null,
+          linkedPdfIds: [],
+          linkedErrorIds: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+
+        setItems(mappedItems);
+        setSpecialties(loadedSpecialties);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
   const filtered = React.useMemo(() => {
-    return mockItems
+    return items
       .filter((item) => {
         const q = search.toLowerCase();
         const matchSearch =
@@ -49,10 +94,19 @@ export function Items() {
         if (sortField === "specialty") return a.specialty.localeCompare(b.specialty);
         return a.code.localeCompare(b.code);
       });
-  }, [search, specialty, rank, status, sortField]);
+  }, [items, search, specialty, rank, status, sortField]);
 
   const masteredCount = filtered.filter((i) => i.status === "mastered").length;
   const inProgressCount = filtered.filter((i) => i.status === "in_progress").length;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full gap-3 text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin" />
+        <p>Chargement des items...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -71,6 +125,12 @@ export function Items() {
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3">
+          {error && (
+            <div className="w-full flex items-center gap-2 text-red-400 text-sm p-3 bg-red-500/10 rounded-md border border-red-500/30">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {error}
+            </div>
+          )}
           <div className="relative flex-1 min-w-48">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -78,17 +138,18 @@ export function Items() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Rechercher un item..."
               className="pl-9"
+              disabled={isLoading}
             />
           </div>
-          <Select value={specialty} onValueChange={setSpecialty}>
+          <Select value={specialty} onValueChange={setSpecialty} disabled={isLoading}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Spécialité" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Toutes les spécialités</SelectItem>
-              {SPECIALTIES.map((s) => (
-                <SelectItem key={s} value={s} className="capitalize">
-                  {s.replace(/_/g, " ")}
+              {specialties.map((s) => (
+                <SelectItem key={s.id} value={s.name} className="capitalize">
+                  {s.name}
                 </SelectItem>
               ))}
             </SelectContent>

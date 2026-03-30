@@ -22,7 +22,7 @@ pub struct Item {
 #[tauri::command]
 pub async fn get_specialties(db: tauri::State<'_, DbPool>) -> Result<Vec<Specialty>, String> {
     sqlx::query_as::<_, Specialty>("SELECT id, name FROM specialties ORDER BY name")
-        .fetch_all(db.get_ref())
+        .fetch_all(db.inner())
         .await
         .map_err(|e| e.to_string())
 }
@@ -33,22 +33,22 @@ pub async fn get_items(
     specialty_id: Option<String>,
     db: tauri::State<'_, DbPool>,
 ) -> Result<Vec<Item>, String> {
-    let query = if let Some(spec_id) = specialty_id {
+    if let Some(spec_id) = specialty_id {
         sqlx::query_as::<_, Item>(
             "SELECT id, specialty_id, code, title, description, rank FROM items WHERE specialty_id = ? ORDER BY id",
         )
         .bind(spec_id)
-        .fetch_all(db.get_ref())
+        .fetch_all(db.inner())
         .await
+        .map_err(|e| e.to_string())
     } else {
         sqlx::query_as::<_, Item>(
             "SELECT id, specialty_id, code, title, description, rank FROM items ORDER BY id",
         )
-        .fetch_all(db.get_ref())
+        .fetch_all(db.inner())
         .await
-    };
-
-    query.map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())
+    }
 }
 
 /// Get a single item by ID
@@ -58,7 +58,7 @@ pub async fn get_item(id: i32, db: tauri::State<'_, DbPool>) -> Result<Option<It
         "SELECT id, specialty_id, code, title, description, rank FROM items WHERE id = ?",
     )
     .bind(id)
-    .fetch_optional(db.get_ref())
+    .fetch_optional(db.inner())
     .await
     .map_err(|e| e.to_string())
 }
@@ -66,8 +66,8 @@ pub async fn get_item(id: i32, db: tauri::State<'_, DbPool>) -> Result<Option<It
 /// Count total items
 #[tauri::command]
 pub async fn count_items(db: tauri::State<'_, DbPool>) -> Result<i64, String> {
-    let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM items")
-        .fetch_one(db.get_ref())
+    let result: (i64,) = sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM items")
+        .fetch_one(db.inner())
         .await
         .map_err(|e| e.to_string())?;
     Ok(result.0)
@@ -77,7 +77,7 @@ pub async fn count_items(db: tauri::State<'_, DbPool>) -> Result<i64, String> {
 /// This is called once on first app launch if items table is empty
 pub async fn seed_items_if_empty(db: &DbPool) -> Result<(), String> {
     // Check if items already exist
-    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM items")
+    let count: (i64,) = sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM items")
         .fetch_one(db)
         .await
         .map_err(|e| format!("Failed to count items: {}", e))?;
@@ -111,7 +111,8 @@ pub async fn seed_items_if_empty(db: &DbPool) -> Result<(), String> {
 
 /// Generate all 362 EDN items
 fn generate_all_items() -> Vec<Item> {
-    let specialties = vec![
+    // 13 specialties
+    let _specialties = vec![
         "cardio", "pneumo", "gastro", "neuro", "nephro", "hemato", "onco", "rheum", "endo",
         "hepato", "ortho", "ophthalmo", "orl",
     ];

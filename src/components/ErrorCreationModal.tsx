@@ -11,21 +11,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { ErrorEntry } from "@/lib/types";
 
 interface ErrorCreationModalProps {
   open: boolean;
   onClose: () => void;
-  onCreate: (error: Omit<ErrorEntry, "id" | "createdAt">) => void;
+  onCreate: (error: { title: string; description: string; error_type: string; severity: string; item_id?: number | null }) => void;
 }
 
 export function ErrorCreationModal({ open, onClose, onCreate }: ErrorCreationModalProps) {
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
-  const [errorType, setErrorType] = React.useState<ErrorEntry["errorType"]>("knowledge_gap");
-  const [severity, setSeverity] = React.useState<ErrorEntry["severity"]>("medium");
-  const [context, setContext] = React.useState("");
-  const [suggestion, setSuggestion] = React.useState("");
+  const [errorType, setErrorType] = React.useState<string>("knowledge_gap");
+  const [severity, setSeverity] = React.useState<string>("medium");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,21 +30,15 @@ export function ErrorCreationModal({ open, onClose, onCreate }: ErrorCreationMod
     onCreate({
       title: title.trim(),
       description: description.trim(),
-      errorType,
+      error_type: errorType,
       severity,
-      context: context.trim() || null,
-      suggestion: suggestion.trim() || null,
-      itemId: null,
-      pdfId: null,
-      resolved: false,
+      item_id: null,
     });
     // reset
     setTitle("");
     setDescription("");
     setErrorType("knowledge_gap");
     setSeverity("medium");
-    setContext("");
-    setSuggestion("");
     onClose();
   };
 
@@ -72,22 +63,21 @@ export function ErrorCreationModal({ open, onClose, onCreate }: ErrorCreationMod
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Type d'erreur</Label>
-              <Select value={errorType} onValueChange={(v) => setErrorType(v as ErrorEntry["errorType"])}>
+              <Select value={errorType} onValueChange={setErrorType}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="concept_confusion">Confusion conceptuelle</SelectItem>
                   <SelectItem value="knowledge_gap">Lacune de connaissance</SelectItem>
-                  <SelectItem value="calculation_error">Erreur de calcul</SelectItem>
-                  <SelectItem value="application_error">Erreur d'application</SelectItem>
-                  <SelectItem value="memory_error">Erreur de mémorisation</SelectItem>
+                  <SelectItem value="calculation">Erreur de calcul</SelectItem>
+                  <SelectItem value="recall">Erreur de mémorisation</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Sévérité</Label>
-              <Select value={severity} onValueChange={(v) => setSeverity(v as ErrorEntry["severity"])}>
+              <Select value={severity} onValueChange={setSeverity}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -109,28 +99,6 @@ export function ErrorCreationModal({ open, onClose, onCreate }: ErrorCreationMod
               placeholder="Décrivez l'erreur commise..."
               rows={3}
               required
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="err-context">Contexte</Label>
-            <Textarea
-              id="err-context"
-              value={context}
-              onChange={(e) => setContext(e.target.value)}
-              placeholder="Dans quel contexte (dossier, QCM, révision)..."
-              rows={2}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="err-suggestion">Suggestion de correction</Label>
-            <Textarea
-              id="err-suggestion"
-              value={suggestion}
-              onChange={(e) => setSuggestion(e.target.value)}
-              placeholder="Comment corriger ou retenir la bonne réponse..."
-              rows={2}
             />
           </div>
 
