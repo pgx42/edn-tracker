@@ -63,6 +63,11 @@ pub fn run() {
             commands::comments::add_anchor_comment,
             commands::comments::get_anchor_comments,
             commands::comments::delete_anchor_comment,
+            commands::diagrams::list_diagrams,
+            commands::diagrams::get_diagram,
+            commands::diagrams::create_diagram,
+            commands::diagrams::update_diagram,
+            commands::diagrams::delete_diagram,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

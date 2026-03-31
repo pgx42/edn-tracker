@@ -4,6 +4,7 @@ import {
   FileText,
   List,
   AlertCircle,
+  PenTool,
   Calendar,
   Settings,
   ChevronLeft,
@@ -22,6 +23,7 @@ const navItems = [
   { to: "/pdfs", label: "PDFs", icon: FileText },
   { to: "/items", label: "EDN Items", icon: List },
   { to: "/errors", label: "Error Notebook", icon: AlertCircle },
+  { to: "/diagrams", label: "Schémas", icon: PenTool },
   { to: "/planning", label: "Planning", icon: Calendar },
 ];
 

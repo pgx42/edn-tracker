@@ -152,6 +152,18 @@ async fn run_schema(pool: &SqlitePool) -> Result<()> {
         "CREATE INDEX IF NOT EXISTS idx_links_target_anchor ON links(target_anchor_id)",
         "CREATE INDEX IF NOT EXISTS idx_links_target_type ON links(target_type, target_id)",
 
+        // Anchor Comments (Discussion thread on anchors)
+        "CREATE TABLE IF NOT EXISTS anchor_comments (
+            id TEXT PRIMARY KEY,
+            anchor_id TEXT NOT NULL,
+            author TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (anchor_id) REFERENCES anchors(id) ON DELETE CASCADE
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_anchor_comments_anchor ON anchor_comments(anchor_id, created_at)",
+
         // Anki
         "CREATE TABLE IF NOT EXISTS anki_decks (
             id TEXT PRIMARY KEY,

@@ -26,6 +26,7 @@ export interface PageViewProps {
   canvasRef: (el: HTMLCanvasElement | null) => void;
   onAnnotationClick?: (annotation: Annotation) => void;
   onSelectionComplete: (rect: SelectionRect, pageNum: number) => void;
+  onAnchorDoubleClick?: (anchor: Anchor, x: number, y: number) => void;
 }
 
 export const PageView: React.FC<PageViewProps> = ({
@@ -45,6 +46,7 @@ export const PageView: React.FC<PageViewProps> = ({
   canvasRef,
   onAnnotationClick,
   onSelectionComplete,
+  onAnchorDoubleClick,
 }) => {
   return (
     <div
@@ -52,7 +54,7 @@ export const PageView: React.FC<PageViewProps> = ({
       data-page={pageNum}
       id={`pdf-page-${pageNum}`}
       className={`relative shadow-md bg-white ${isCurrent ? "ring-2 ring-primary ring-offset-2" : ""}`}
-      style={{ width: cssWidth, height: cssHeight }}
+      style={{ width: cssWidth, height: cssHeight, position: "relative" }}
     >
       {isVisible ? (
         <>
@@ -78,6 +80,7 @@ export const PageView: React.FC<PageViewProps> = ({
               pageNumber={pageNum}
               pageWidth={cssWidth}
               pageHeight={cssHeight}
+              onAnchorDoubleClick={onAnchorDoubleClick}
             />
           )}
           {pdfId !== null && cssWidth > 0 && cssHeight > 0 && isVisible && (

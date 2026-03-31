@@ -4,6 +4,7 @@ pub mod pdf;
 pub mod links;
 pub mod errors;
 pub mod comments;
+pub mod diagrams;
 
 use serde::Serialize;
 use tauri::State;

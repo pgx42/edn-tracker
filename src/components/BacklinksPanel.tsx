@@ -27,15 +27,12 @@ import type { Anchor } from "./pdf-viewer/AnchorCreationModal";
 import { AnchorCommentThread } from "./AnchorCommentThread";
 
 export interface BackLink {
-  id: number;
-  source_resource_type: string;
-  source_resource_id: number;
-  source_resource_name: string;
-  target_resource_type: string;
-  target_resource_id: number;
-  target_resource_name: string;
+  link_id: string;
+  resource_type: string;
+  resource_id: string;
+  resource_name: string | null;
   link_type: string;
-  created_at: string;
+  direction: "incoming" | "outgoing";
 }
 
 interface BacklinksPanelProps {
@@ -115,7 +112,7 @@ export const BacklinksPanel: React.FC<BacklinksPanelProps> = ({
           page: pageNumber,
         }),
         invoke<Anchor[]>("list_anchors", {
-          pdfId,
+          pdf_id: pdfId,
           page: pageNumber,
         }),
       ]);
@@ -136,8 +133,8 @@ export const BacklinksPanel: React.FC<BacklinksPanelProps> = ({
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
-      await invoke("delete_link", { id: deleteTarget.id });
-      setLinks((prev) => prev.filter((l) => l.id !== deleteTarget.id));
+      await invoke("delete_link", { id: deleteTarget.link_id });
+      setLinks((prev) => prev.filter((l) => l.link_id !== deleteTarget.link_id));
       setDeleteTarget(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -146,25 +143,46 @@ export const BacklinksPanel: React.FC<BacklinksPanelProps> = ({
     }
   };
 
-  // Group links by the "other" resource type
-  const grouped = React.useMemo(() => {
-    const map = new Map<ResourceType, BackLink[]>();
+  // Group links by direction and resource type
+  const { incomingLinks, outgoingLinks } = React.useMemo(() => {
+    const incoming: BackLink[] = [];
+    const outgoing: BackLink[] = [];
     for (const link of links) {
-      // Determine which side is "other" (not this pdf)
-      const otherType = resourceType(
-        link.source_resource_type === "pdf" && link.source_resource_id === pdfId
-          ? link.target_resource_type
-          : link.source_resource_type
-      );
-      const arr = map.get(otherType) ?? [];
-      arr.push(link);
-      map.set(otherType, arr);
+      if (link.direction === "incoming") {
+        incoming.push(link);
+      } else {
+        outgoing.push(link);
+      }
     }
-    // Sort groups by label
+    return { incomingLinks: incoming, outgoingLinks: outgoing };
+  }, [links]);
+
+  // Group by resource type
+  const groupedIncoming = React.useMemo(() => {
+    const map = new Map<ResourceType, BackLink[]>();
+    for (const link of incomingLinks) {
+      const type = resourceType(link.resource_type);
+      const arr = map.get(type) ?? [];
+      arr.push(link);
+      map.set(type, arr);
+    }
     return Array.from(map.entries()).sort((a, b) =>
       RESOURCE_META[a[0]].label.localeCompare(RESOURCE_META[b[0]].label)
     );
-  }, [links, pdfId]);
+  }, [incomingLinks]);
+
+  const groupedOutgoing = React.useMemo(() => {
+    const map = new Map<ResourceType, BackLink[]>();
+    for (const link of outgoingLinks) {
+      const type = resourceType(link.resource_type);
+      const arr = map.get(type) ?? [];
+      arr.push(link);
+      map.set(type, arr);
+    }
+    return Array.from(map.entries()).sort((a, b) =>
+      RESOURCE_META[a[0]].label.localeCompare(RESOURCE_META[b[0]].label)
+    );
+  }, [outgoingLinks]);
 
   return (
     <div className="flex flex-col h-full bg-card/50 border-l">
@@ -235,117 +253,191 @@ export const BacklinksPanel: React.FC<BacklinksPanelProps> = ({
             </div>
           )}
 
-          {!isLoading &&
-            grouped.map(([type, groupLinks]) => {
-              const meta = RESOURCE_META[type];
-              const Icon = meta.icon;
-              return (
-                <div key={type} className="mb-3">
-                  <div className="flex items-center gap-1.5 px-1 mb-1">
-                    <Icon className={`h-3.5 w-3.5 ${meta.colorClass}`} />
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      {meta.label}
-                    </span>
-                    <span className="text-xs text-muted-foreground ml-auto">
-                      {groupLinks.length}
-                    </span>
-                  </div>
-                  <ul className="space-y-0.5">
-                    {groupLinks.map((link) => {
-                      const isSource =
-                        link.source_resource_type === "pdf" &&
-                        link.source_resource_id === pdfId;
-                      const otherName = isSource
-                        ? link.target_resource_name
-                        : link.source_resource_name;
+          {/* Incoming links section */}
+          {!isLoading && incomingLinks.length > 0 && (
+            <div className="mb-4 pb-4 border-b last:border-b-0">
+              <div className="px-1 mb-2">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Liens entrants
+                </span>
+              </div>
+              {groupedIncoming.map(([type, groupLinks]) => {
+                const meta = RESOURCE_META[type];
+                const Icon = meta.icon;
+                return (
+                  <div key={`incoming-${type}`} className="mb-2 pb-2 last:mb-0 last:pb-0">
+                    <div className="flex items-center gap-1.5 px-1 mb-1">
+                      <Icon className={`h-3.5 w-3.5 ${meta.colorClass}`} />
+                      <span className="text-xs text-muted-foreground">{meta.label}</span>
+                      <span className="text-xs text-muted-foreground ml-auto">
+                        {groupLinks.length}
+                      </span>
+                    </div>
+                    <ul className="space-y-0.5">
+                      {groupLinks.map((link) => {
+                        const displayName = link.resource_name || link.resource_id;
 
-                      return (
-                        <li key={link.id}>
-                          <div className="group flex items-center gap-1.5 rounded px-1.5 py-1.5 hover:bg-accent transition-colors">
-                            <button
-                              className="flex-1 text-left min-w-0"
-                              onClick={() => {
-                                onNavigate?.(link);
-                                // Determine the other resource for navigation
-                                const isSource =
-                                  link.source_resource_type === "pdf" &&
-                                  link.source_resource_id === pdfId;
-                                const navType = resourceType(
-                                  isSource
-                                    ? link.target_resource_type
-                                    : link.source_resource_type
-                                );
-                                const navId = isSource
-                                  ? String(link.target_resource_id)
-                                  : String(link.source_resource_id);
-                                const navTypeMap: Record<string, NavResourceType> = {
-                                  pdf: "pdf",
-                                  item: "item",
-                                  error: "error",
-                                  anki: "anki_card",
-                                  diagram: "excalidraw",
-                                  unknown: "pdf",
-                                };
-                                navigateTo({ type: navTypeMap[navType] ?? "pdf", id: navId });
-                              }}
-                            >
-                              <p className="text-xs font-medium truncate leading-snug">
-                                {otherName}
-                              </p>
-                              <Badge
-                                variant={linkTypeBadgeVariant(link.link_type)}
-                                className="text-xs py-0 h-4 mt-0.5"
+                        return (
+                          <li key={link.link_id}>
+                            <div className="group flex items-center gap-1.5 rounded px-1.5 py-1.5 hover:bg-accent transition-colors">
+                              <button
+                                className="flex-1 text-left min-w-0"
+                                onClick={() => {
+                                  onNavigate?.(link);
+                                  const navType = resourceType(link.resource_type);
+                                  const navTypeMap: Record<string, NavResourceType> = {
+                                    pdf: "pdf",
+                                    item: "item",
+                                    error: "error",
+                                    anki: "anki_card",
+                                    diagram: "excalidraw",
+                                    unknown: "pdf",
+                                  };
+                                  navigateTo({ type: navTypeMap[navType] ?? "pdf", id: link.resource_id });
+                                }}
                               >
-                                {formatLinkType(link.link_type)}
-                              </Badge>
-                            </button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => {
-                                const isSource =
-                                  link.source_resource_type === "pdf" &&
-                                  link.source_resource_id === pdfId;
-                                const navType = resourceType(
-                                  isSource
-                                    ? link.target_resource_type
-                                    : link.source_resource_type
-                                );
-                                const navId = isSource
-                                  ? String(link.target_resource_id)
-                                  : String(link.source_resource_id);
-                                const navTypeMap: Record<string, NavResourceType> = {
-                                  pdf: "pdf",
-                                  item: "item",
-                                  error: "error",
-                                  anki: "anki_card",
-                                  diagram: "excalidraw",
-                                  unknown: "pdf",
-                                };
-                                navigateTo({ type: navTypeMap[navType] ?? "pdf", id: navId });
-                              }}
-                              title="Naviguer vers la ressource"
-                            >
-                              <ExternalLink className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                              onClick={() => setDeleteTarget(link)}
-                              title="Supprimer ce lien"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              );
-            })}
+                                <p className="text-xs font-medium truncate leading-snug">
+                                  {displayName}
+                                </p>
+                                <Badge
+                                  variant={linkTypeBadgeVariant(link.link_type)}
+                                  className="text-xs py-0 h-4 mt-0.5"
+                                >
+                                  {formatLinkType(link.link_type)}
+                                </Badge>
+                              </button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => {
+                                  const navType = resourceType(link.resource_type);
+                                  const navTypeMap: Record<string, NavResourceType> = {
+                                    pdf: "pdf",
+                                    item: "item",
+                                    error: "error",
+                                    anki: "anki_card",
+                                    diagram: "excalidraw",
+                                    unknown: "pdf",
+                                  };
+                                  navigateTo({ type: navTypeMap[navType] ?? "pdf", id: link.resource_id });
+                                }}
+                                title="Naviguer vers la ressource"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                                onClick={() => setDeleteTarget(link)}
+                                title="Supprimer ce lien"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Outgoing links section */}
+          {!isLoading && outgoingLinks.length > 0 && (
+            <div className="mb-4 pb-4 border-b last:border-b-0">
+              <div className="px-1 mb-2">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Liens sortants
+                </span>
+              </div>
+              {groupedOutgoing.map(([type, groupLinks]) => {
+                const meta = RESOURCE_META[type];
+                const Icon = meta.icon;
+                return (
+                  <div key={`outgoing-${type}`} className="mb-2 pb-2 last:mb-0 last:pb-0">
+                    <div className="flex items-center gap-1.5 px-1 mb-1">
+                      <Icon className={`h-3.5 w-3.5 ${meta.colorClass}`} />
+                      <span className="text-xs text-muted-foreground">{meta.label}</span>
+                      <span className="text-xs text-muted-foreground ml-auto">
+                        {groupLinks.length}
+                      </span>
+                    </div>
+                    <ul className="space-y-0.5">
+                      {groupLinks.map((link) => {
+                        const displayName = link.resource_name || `${link.resource_type} (${link.resource_id.slice(0, 8)})`;
+
+                        return (
+                          <li key={link.link_id}>
+                            <div className="group flex items-center gap-1.5 rounded px-1.5 py-1.5 hover:bg-accent transition-colors">
+                              <button
+                                className="flex-1 text-left min-w-0"
+                                onClick={() => {
+                                  onNavigate?.(link);
+                                  const navType = resourceType(link.resource_type);
+                                  const navTypeMap: Record<string, NavResourceType> = {
+                                    pdf: "pdf",
+                                    item: "item",
+                                    error: "error",
+                                    anki: "anki_card",
+                                    diagram: "excalidraw",
+                                    unknown: "pdf",
+                                  };
+                                  navigateTo({ type: navTypeMap[navType] ?? "pdf", id: link.resource_id });
+                                }}
+                              >
+                                <p className="text-xs font-medium truncate leading-snug">
+                                  {displayName}
+                                </p>
+                                <Badge
+                                  variant={linkTypeBadgeVariant(link.link_type)}
+                                  className="text-xs py-0 h-4 mt-0.5"
+                                >
+                                  {formatLinkType(link.link_type)}
+                                </Badge>
+                              </button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => {
+                                  const navType = resourceType(link.resource_type);
+                                  const navTypeMap: Record<string, NavResourceType> = {
+                                    pdf: "pdf",
+                                    item: "item",
+                                    error: "error",
+                                    anki: "anki_card",
+                                    diagram: "excalidraw",
+                                    unknown: "pdf",
+                                  };
+                                  navigateTo({ type: navTypeMap[navType] ?? "pdf", id: link.resource_id });
+                                }}
+                                title="Naviguer vers la ressource"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                                onClick={() => setDeleteTarget(link)}
+                                title="Supprimer ce lien"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </ScrollArea>
 
@@ -356,9 +448,7 @@ export const BacklinksPanel: React.FC<BacklinksPanelProps> = ({
             <DialogTitle>Supprimer le lien</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Supprimer ce lien entre{" "}
-            <strong>{deleteTarget?.source_resource_name}</strong> et{" "}
-            <strong>{deleteTarget?.target_resource_name}</strong> ?
+            Supprimer ce lien vers <strong>{deleteTarget?.resource_name || deleteTarget?.resource_type}</strong> ?
             Cette action est irréversible.
           </p>
           {error && <p className="text-xs text-destructive">{error}</p>}

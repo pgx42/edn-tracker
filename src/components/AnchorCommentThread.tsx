@@ -70,6 +70,21 @@ export const AnchorCommentThread: React.FC<AnchorCommentThreadProps> = ({
     }
   };
 
+  // Auto-refresh comments when expanded (poll every 2 seconds)
+  React.useEffect(() => {
+    if (!isExpanded) return;
+
+    // Load immediately
+    loadComments();
+
+    // Set up polling
+    const interval = setInterval(() => {
+      loadComments();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isExpanded, loadComments]);
+
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return "";
     try {

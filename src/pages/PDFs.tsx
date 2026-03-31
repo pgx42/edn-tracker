@@ -1,5 +1,6 @@
 import * as React from "react";
 import { PdfViewer } from "@/components/pdf-viewer";
+import { PdfImportModal } from "@/components/PdfImportModal";
 import { usePdfStore } from "@/stores/pdf";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +35,8 @@ export function PDFs() {
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState("all");
-  const [specialtyFilter, setSpecialtyFilter] = React.useState("all");
+  const [categorizationModalOpen, setCategorizationModalOpen] = React.useState(false);
+  const [isImporting, setIsImporting] = React.useState(false);
 
   // Load document list from backend on mount; fall back to mock data
   React.useEffect(() => {
@@ -45,31 +47,61 @@ export function PDFs() {
 
   const activeDoc = documents.find((d) => d.id === activePdfId) ?? null;
 
-  const specialties: string[] = []; // specialty not in schema yet
-
   const filteredDocs = documents.filter((doc) => {
     const q = search.toLowerCase();
     const matchSearch = !q || doc.title.toLowerCase().includes(q);
     const matchType = typeFilter === "all" || doc.doc_type === typeFilter;
-    const matchSpecialty = specialtyFilter === "all"; // no specialty field yet
-    return matchSearch && matchType && matchSpecialty;
+    return matchSearch && matchType;
   });
 
-  const handleImport = async () => {
+  const handleImport = () => {
+    setCategorizationModalOpen(true);
+  };
+
+  const handleImportConfirm = async (docType: string, _specialtyId?: string, _itemId?: number) => {
     try {
+      setCategorizationModalOpen(false);
+      setIsImporting(true);
+
       const path = await invoke<string | null>("open_pdf_dialog");
-      if (!path) return; // User cancelled the dialog
-      const doc = await invoke<PdfDocument>("import_pdf", { path });
-      setDocuments([...documents, doc]);
-      setActivePdf(doc.id);
+      if (!path) {
+        setIsImporting(false);
+        return; // User cancelled the dialog
+      }
+
+      await invoke<PdfDocument>("import_pdf", {
+        path,
+        doc_type: docType,
+      });
+
+      // Refresh the complete list from backend
+      const updatedDocs = await invoke<PdfDocument[]>("list_pdfs");
+      setDocuments(updatedDocs);
+
+      // Set active to the most recently created document
+      if (updatedDocs.length > 0) {
+        setActivePdf(updatedDocs[0].id);
+      }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsImporting(false);
     }
+  };
+
+  const handleImportCancel = () => {
+    setCategorizationModalOpen(false);
   };
 
   return !activeDoc ? (
     // Library view (full page)
     <div className="h-full flex flex-col bg-background">
+      <PdfImportModal
+        open={categorizationModalOpen}
+        onCancel={handleImportCancel}
+        onConfirm={handleImportConfirm}
+        isLoading={isImporting}
+      />
       {/* Header */}
       <div className="border-b px-6 py-4 flex items-center justify-between shrink-0">
         <div>

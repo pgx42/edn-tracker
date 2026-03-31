@@ -8,6 +8,7 @@ interface AnchorHighlightProps {
   pageWidth: number;
   pageHeight: number;
   onAnchorClick?: (anchor: Anchor) => void;
+  onAnchorDoubleClick?: (anchor: Anchor, x: number, y: number) => void;
 }
 
 /**
@@ -20,6 +21,7 @@ export const AnchorHighlight: React.FC<AnchorHighlightProps> = ({
   pageWidth,
   pageHeight,
   onAnchorClick,
+  onAnchorDoubleClick,
 }) => {
   const pageAnchors = anchors.filter((a) => a.page_number === pageNumber);
   if (pageAnchors.length === 0) return null;
@@ -36,57 +38,62 @@ export const AnchorHighlight: React.FC<AnchorHighlightProps> = ({
         zIndex: 15,
       }}
     >
-      {pageAnchors.map((anchor) => (
-        <div
-          key={anchor.id}
-          title={anchor.label}
-          onClick={() => onAnchorClick?.(anchor)}
-          style={{
-            position: "absolute",
-            left: (anchor.x ?? 0) * pageWidth,
-            top: (anchor.y ?? 0) * pageHeight,
-            width: (anchor.w ?? 0) * pageWidth,
-            height: (anchor.h ?? 0) * pageHeight,
-            backgroundColor: "rgba(59, 130, 246, 0.18)",
-            border: "1.5px solid rgba(59, 130, 246, 0.55)",
-            borderRadius: 2,
-            cursor: onAnchorClick ? "pointer" : "default",
-            pointerEvents: onAnchorClick ? "auto" : "none",
-            transition: "background-color 0.15s",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLDivElement).style.backgroundColor =
-              "rgba(59, 130, 246, 0.32)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLDivElement).style.backgroundColor =
-              "rgba(59, 130, 246, 0.18)";
-          }}
-        >
-          {/* Label chip at top-left of zone */}
-          <span
+      {pageAnchors.map((anchor) => {
+        const left = (anchor.x ?? 0) * pageWidth;
+        const top = (anchor.y ?? 0) * pageHeight;
+        return (
+          <div
+            key={anchor.id}
+            title={anchor.label}
+            onClick={() => onAnchorClick?.(anchor)}
+            onDoubleClick={() => onAnchorDoubleClick?.(anchor, left, top)}
             style={{
               position: "absolute",
-              top: -1,
-              left: 0,
-              fontSize: 9,
-              lineHeight: "14px",
-              padding: "0 4px",
-              backgroundColor: "rgba(59, 130, 246, 0.85)",
-              color: "#fff",
-              borderRadius: "2px 2px 2px 0",
-              whiteSpace: "nowrap",
-              maxWidth: "100%",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              pointerEvents: "none",
-              userSelect: "none",
+              left,
+              top,
+              width: (anchor.w ?? 0) * pageWidth,
+              height: (anchor.h ?? 0) * pageHeight,
+              backgroundColor: "rgba(59, 130, 246, 0.18)",
+              border: "1.5px solid rgba(59, 130, 246, 0.55)",
+              borderRadius: 2,
+              cursor: onAnchorClick || onAnchorDoubleClick ? "pointer" : "default",
+              pointerEvents: onAnchorClick || onAnchorDoubleClick ? "auto" : "none",
+              transition: "background-color 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLDivElement).style.backgroundColor =
+                "rgba(59, 130, 246, 0.32)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLDivElement).style.backgroundColor =
+                "rgba(59, 130, 246, 0.18)";
             }}
           >
-            {anchor.label}
-          </span>
-        </div>
-      ))}
+            {/* Label chip at top-left of zone */}
+            <span
+              style={{
+                position: "absolute",
+                top: -1,
+                left: 0,
+                fontSize: 9,
+                lineHeight: "14px",
+                padding: "0 4px",
+                backgroundColor: "rgba(59, 130, 246, 0.85)",
+                color: "#fff",
+                borderRadius: "2px 2px 2px 0",
+                whiteSpace: "nowrap",
+                maxWidth: "100%",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                pointerEvents: "none",
+                userSelect: "none",
+              }}
+            >
+              {anchor.label}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 };

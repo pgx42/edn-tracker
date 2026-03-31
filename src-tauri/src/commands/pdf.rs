@@ -31,10 +31,11 @@ pub async fn open_pdf_dialog() -> Result<Option<String>, String> {
     Ok(path.map(|p| p.to_string_lossy().to_string()))
 }
 
-/// Import a PDF document
+/// Import a PDF document with metadata
 #[tauri::command]
 pub async fn import_pdf(
     path: String,
+    doc_type: Option<String>,
     db: tauri::State<'_, crate::db::DbPool>,
 ) -> Result<PdfDocument, String> {
     let p = Path::new(&path);
@@ -50,14 +51,22 @@ pub async fn import_pdf(
     fs::read(&path)
         .map_err(|e| format!("Failed to read PDF file: {}", e))?;
 
+    // Validate doc_type if provided
+    let validated_type = match &doc_type {
+        Some(t) if matches!(t.as_str(), "college" | "poly" | "lca" | "annale" | "other") => Some(t.clone()),
+        None => None,
+        _ => return Err("Invalid doc_type. Must be one of: college, poly, lca, annale, other".to_string()),
+    };
+
     // Insert into database
     sqlx::query(
-        "INSERT INTO pdf_documents (id, title, file_path, num_pages, has_native_text, is_scanned, text_extraction_complete, ocr_complete, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))"
+        "INSERT INTO pdf_documents (id, title, file_path, doc_type, num_pages, has_native_text, is_scanned, text_extraction_complete, ocr_complete, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))"
     )
     .bind(&pdf_id)
     .bind(&title)
     .bind(&path) // Store original path for reference
+    .bind(&validated_type)
     .bind(0) // num_pages will be populated after OCR/text extraction
     .bind(true) // assume has_native_text initially
     .bind(false)
@@ -67,13 +76,24 @@ pub async fn import_pdf(
     .await
     .map_err(|e| format!("Failed to import PDF: {}", e))?;
 
+    // Fetch the created document to get the created_at timestamp
+    let created_doc = sqlx::query_as::<_, (Option<String>,)>(
+        "SELECT created_at FROM pdf_documents WHERE id = ?"
+    )
+    .bind(&pdf_id)
+    .fetch_optional(db.inner())
+    .await
+    .map_err(|e| format!("Failed to fetch created document: {}", e))?
+    .map(|row| row.0)
+    .flatten();
+
     Ok(PdfDocument {
         id: pdf_id,
         title,
         file_path: path.clone(), // Store path as-is
-        doc_type: None,
+        doc_type: validated_type,
         num_pages: 0,
-        created_at: None,
+        created_at: created_doc,
         has_native_text: Some(true),
         is_scanned: Some(false),
         text_extraction_complete: Some(false),

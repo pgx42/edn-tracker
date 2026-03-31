@@ -67,19 +67,20 @@ export const AnchorCreationModal: React.FC<AnchorCreationModalProps> = ({
 
     try {
       const anchorId = await invoke<string>("create_anchor", {
-        pdfId,
+        pdf_id: pdfId,
         page,
         x: selection.x,
         y: selection.y,
         w: selection.width,
         h: selection.height,
         label: label.trim(),
-        textSnippet: textSnippet.trim() || null,
+        text_snippet: textSnippet.trim() || null,
       });
       onAnchorCreated(anchorId);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      console.error("create_anchor error:", err);
     } finally {
       setIsSubmitting(false);
     }

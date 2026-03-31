@@ -39,11 +39,12 @@ pub struct Link {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BacklinkResult {
+    pub link_id: String,
     pub resource_type: String,
     pub resource_id: String,
     pub resource_name: Option<String>,
     pub link_type: String,
-    pub link_id: String,
+    pub direction: String,
 }
 
 // ─── Anchor Commands ──────────────────────────────────────────────────────────
@@ -272,10 +273,10 @@ pub async fn delete_link(
     Ok(rows.rows_affected() > 0)
 }
 
-/// Get all backlinks pointing to resources associated with a PDF page or item.
+/// Get all backlinks for a PDF page or item.
 ///
-/// Filters by pdf_document_id, page_number, or item_id. Returns a flat list of
-/// BacklinkResult describing each linked resource.
+/// Returns both incoming links (other resources linking to PDF anchors)
+/// and outgoing links (PDF anchors linking to other resources).
 #[tauri::command]
 pub async fn get_backlinks(
     pdf_id: Option<String>,
@@ -283,7 +284,9 @@ pub async fn get_backlinks(
     item_id: Option<i32>,
     db: tauri::State<'_, DbPool>,
 ) -> Result<Vec<BacklinkResult>, String> {
-    // Collect anchor IDs matching the given scope, then gather all links referencing them.
+    let mut results: Vec<BacklinkResult> = Vec::new();
+
+    // Get anchor IDs for the given PDF page
     let anchor_ids: Vec<String> = match (pdf_id.as_deref(), page) {
         (Some(pid), Some(pg)) => {
             sqlx::query_as::<_, (String,)>(
@@ -313,12 +316,10 @@ pub async fn get_backlinks(
         _ => Vec::new(),
     };
 
-    let mut results: Vec<BacklinkResult> = Vec::new();
-
-    // Links where these anchors are the target (incoming links from other resources)
+    // INCOMING: Links where these anchors are the target (other resources → PDF)
     for aid in &anchor_ids {
-        let rows = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, String)>(
-            "SELECT l.id, l.link_type, l.target_type, l.target_id, a.pdf_document_id
+        let rows = sqlx::query_as::<_, (String, String, String)>(
+            "SELECT l.id, l.link_type, a.pdf_document_id
              FROM links l
              JOIN anchors a ON a.id = l.source_anchor_id
              WHERE l.target_anchor_id = ?",
@@ -326,21 +327,130 @@ pub async fn get_backlinks(
         .bind(aid)
         .fetch_all(db.inner())
         .await
-        .map_err(|e| format!("get_backlinks links error: {e}"))?;
+        .map_err(|e| format!("get_backlinks incoming error: {e}"))?;
 
-        for (link_id, link_type, target_type, target_id, src_pdf_id) in rows {
+        for (link_id, link_type, src_pdf_id) in rows {
             results.push(BacklinkResult {
+                link_id,
                 resource_type: "pdf".to_string(),
                 resource_id: src_pdf_id.clone(),
                 resource_name: Some(src_pdf_id),
                 link_type,
-                link_id,
+                direction: "incoming".to_string(),
             });
-            let _ = (target_type, target_id); // may be used for richer resolution later
         }
     }
 
-    // Links pointing to this item by target_type/target_id
+    // OUTGOING: Links where these anchors are the source (PDF → other resources)
+    for aid in &anchor_ids {
+        let rows = sqlx::query_as::<_, (String, String, Option<String>, Option<String>)>(
+            "SELECT l.id, l.link_type, l.target_type, l.target_id
+             FROM links
+             WHERE source_anchor_id = ?",
+        )
+        .bind(aid)
+        .fetch_all(db.inner())
+        .await
+        .map_err(|e| format!("get_backlinks outgoing error: {e}"))?;
+
+        for (link_id, link_type, target_type, target_id) in rows {
+            if let Some(ttype) = target_type {
+                if ttype == "anchor" {
+                    // Find the PDF that this target anchor belongs to
+                    if let Some(tid) = &target_id {
+                        if let Ok(Some(anchor_row)) = sqlx::query_as::<_, (Option<String>,)>(
+                            "SELECT pdf_document_id FROM anchors WHERE id = ?",
+                        )
+                        .bind(tid)
+                        .fetch_optional(db.inner())
+                        .await
+                        {
+                            if let (Some(target_pdf_id),) = anchor_row {
+                                results.push(BacklinkResult {
+                                    link_id,
+                                    resource_type: "anchor".to_string(),
+                                    resource_id: tid.clone(),
+                                    resource_name: Some(target_pdf_id),
+                                    link_type,
+                                    direction: "outgoing".to_string(),
+                                });
+                            }
+                        }
+                    }
+                } else if ttype == "item" {
+                    // Item target - fetch the item title
+                    if let Some(tid) = &target_id {
+                        let item_name = sqlx::query_as::<_, (String,)>(
+                            "SELECT title FROM items WHERE id = ?",
+                        )
+                        .bind(tid)
+                        .fetch_optional(db.inner())
+                        .await
+                        .ok()
+                        .flatten()
+                        .map(|(title,)| title);
+
+                        results.push(BacklinkResult {
+                            link_id,
+                            resource_type: "item".to_string(),
+                            resource_id: tid.clone(),
+                            resource_name: item_name,
+                            link_type,
+                            direction: "outgoing".to_string(),
+                        });
+                    }
+                } else if ttype == "error" {
+                    // Error target - fetch the error title
+                    if let Some(tid) = &target_id {
+                        let error_name = sqlx::query_as::<_, (String,)>(
+                            "SELECT title FROM errors WHERE id = ?",
+                        )
+                        .bind(tid)
+                        .fetch_optional(db.inner())
+                        .await
+                        .ok()
+                        .flatten()
+                        .map(|(title,)| title);
+
+                        results.push(BacklinkResult {
+                            link_id,
+                            resource_type: "error".to_string(),
+                            resource_id: tid.clone(),
+                            resource_name: error_name,
+                            link_type,
+                            direction: "outgoing".to_string(),
+                        });
+                    }
+                } else if ttype == "anki_card" {
+                    // Anki card target
+                    if let Some(tid) = &target_id {
+                        results.push(BacklinkResult {
+                            link_id,
+                            resource_type: "anki_card".to_string(),
+                            resource_id: tid.clone(),
+                            resource_name: None,
+                            link_type,
+                            direction: "outgoing".to_string(),
+                        });
+                    }
+                } else if ttype == "excalidraw" {
+                    // Excalidraw diagram target
+                    if let Some(tid) = &target_id {
+                        results.push(BacklinkResult {
+                            link_id,
+                            resource_type: "excalidraw".to_string(),
+                            resource_id: tid.clone(),
+                            resource_name: None,
+                            link_type,
+                            direction: "outgoing".to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // Item links (if searching for a specific item)
     if let Some(iid) = item_id {
         let rows = sqlx::query_as::<_, (String, String, String)>(
             "SELECT l.id, l.link_type, a.pdf_document_id
@@ -355,11 +465,12 @@ pub async fn get_backlinks(
 
         for (link_id, link_type, src_pdf_id) in rows {
             results.push(BacklinkResult {
-                resource_type: "item".to_string(),
-                resource_id: iid.to_string(),
+                link_id,
+                resource_type: "pdf".to_string(),
+                resource_id: src_pdf_id.clone(),
                 resource_name: Some(src_pdf_id),
                 link_type,
-                link_id,
+                direction: "incoming".to_string(),
             });
         }
     }

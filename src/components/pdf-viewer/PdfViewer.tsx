@@ -6,6 +6,7 @@ import type { SelectionRect } from "./AnchorSelectionLayer";
 import { AnchorCreationModal, type Anchor } from "./AnchorCreationModal";
 import { BacklinksPanel } from "@/components/BacklinksPanel";
 import { LinkCreationModal } from "@/components/LinkCreationModal";
+import { FloatingCommentPanel } from "./FloatingCommentPanel";
 import { ThumbnailList } from "./PdfThumbnails";
 import { PdfToolbar, type ZoomMode } from "./PdfToolbar";
 import { PageView } from "./PageView";
@@ -88,6 +89,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   const [showAnchors, setShowAnchors] = React.useState(true);
   const [linkModalOpen, setLinkModalOpen] = React.useState(false);
   const [createdAnchorId, setCreatedAnchorId] = React.useState<string | null>(null);
+  const [selectedAnchor, setSelectedAnchor] = React.useState<Anchor | null>(null);
+  const [selectedAnchorPos, setSelectedAnchorPos] = React.useState<{ x: number; y: number } | null>(null);
 
   const containerRef = React.useRef<HTMLDivElement>(null);
   const thumbPanelRef = usePanelRef();
@@ -105,7 +108,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
       setAnchors([]);
       return;
     }
-    invoke<Anchor[]>("list_anchors", { pdfId, page: currentPage })
+    invoke<Anchor[]>("list_anchors", { pdf_id: pdfId, page: currentPage })
       .then(setAnchors)
       .catch(() => setAnchors([]));
   }, [pdfId, currentPage]);
@@ -612,6 +615,19 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                 Dessinez un rectangle sur la page
               </div>
             )}
+
+            {/* Floating comment panel */}
+            {selectedAnchor && (
+              <FloatingCommentPanel
+                anchor={selectedAnchor}
+                position={selectedAnchorPos || undefined}
+                onClose={() => {
+                  setSelectedAnchor(null);
+                  setSelectedAnchorPos(null);
+                }}
+              />
+            )}
+
             <div
               ref={containerRef}
               className="h-full overflow-auto flex flex-col items-center gap-4 py-4 px-2 bg-muted/10"
@@ -648,6 +664,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                         setPendingPage(pageNum);
                         setAnchorModalOpen(true);
                         setSelectionMode(false);
+                      }}
+                      onAnchorDoubleClick={(anchor, x, y) => {
+                        setSelectedAnchor(anchor);
+                        setSelectedAnchorPos({ x, y });
                       }}
                     />
                   );

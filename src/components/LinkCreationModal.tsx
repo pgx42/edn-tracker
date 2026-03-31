@@ -61,6 +61,28 @@ function useDebounce<T>(value: T, delay: number): T {
 
 // ─── Backend search helpers ───────────────────────────────────────────────────
 
+async function getAnchorsForPdf(pdfId: string): Promise<SearchResult[]> {
+  try {
+    interface Anchor {
+      id: string;
+      label?: string;
+      page_number?: number;
+      text_snippet?: string;
+    }
+    const anchors = await invoke<Anchor[]>("list_anchors", {
+      pdf_id: pdfId,
+    });
+    return anchors.map((a) => ({
+      kind: "pdf" as ResourceKind,
+      id: a.id,
+      label: a.label || `Page ${a.page_number}`,
+      sublabel: a.text_snippet ? `"${a.text_snippet.slice(0, 30)}..."` : "Zone",
+    }));
+  } catch {
+    return [];
+  }
+}
+
 async function searchPdfs(query: string): Promise<SearchResult[]> {
   try {
     const docs = await invoke<PdfDocument[]>("list_pdfs");
@@ -222,6 +244,7 @@ export const LinkCreationModal: React.FC<LinkCreationModalProps> = ({
   const [isSearching, setIsSearching] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [selectedPdfAnchors, setSelectedPdfAnchors] = React.useState<SearchResult[]>([]);
 
   const debouncedQuery = useDebounce(query, 250);
 
@@ -254,8 +277,16 @@ export const LinkCreationModal: React.FC<LinkCreationModalProps> = ({
       setLinkType("related");
       setBidirectional(true);
       setError(null);
+      setSelectedPdfAnchors([]);
     }
   }, [open]);
+
+  // Load anchors when PDF is selected and bidirectional is enabled
+  React.useEffect(() => {
+    if (selected?.kind === "pdf" && bidirectional) {
+      getAnchorsForPdf(selected.id).then(setSelectedPdfAnchors);
+    }
+  }, [selected, bidirectional]);
 
   const handleCreate = async () => {
     if (!selected || !sourceAnchorId) return;
@@ -273,13 +304,13 @@ export const LinkCreationModal: React.FC<LinkCreationModalProps> = ({
 
       const linkId = await invoke<string>("create_link", {
         sourceAnchorId,
-        targetAnchorId: null,
+        targetAnchorId: selected.kind === "pdf" ? selected.id : null,
         targetType: mappedTargetType,
-        targetId: selected.id,
+        targetId: selected.kind === "pdf" ? null : selected.id,
         linkType,
       });
 
-      // If bidirectional, create reverse link too
+      // If bidirectional and PDF target, create reverse link from selected anchor to source
       if (bidirectional && selected.kind === "pdf") {
         try {
           await invoke<string>("create_link", {
@@ -412,7 +443,9 @@ export const LinkCreationModal: React.FC<LinkCreationModalProps> = ({
                 Lien bidirectionnel
               </Label>
               <p className="text-xs text-muted-foreground">
-                Crée un lien retour automatique
+                {selected?.kind === "pdf"
+                  ? "Crée un lien retour depuis une ancrage du PDF"
+                  : "Crée un lien retour automatique"}
               </p>
             </div>
             <Switch
@@ -421,6 +454,42 @@ export const LinkCreationModal: React.FC<LinkCreationModalProps> = ({
               onCheckedChange={setBidirectional}
             />
           </div>
+
+          {/* Show anchors when PDF is selected and bidirectional is enabled */}
+          {selected?.kind === "pdf" && bidirectional && selectedPdfAnchors.length > 0 && (
+            <div className="space-y-1.5 border rounded-md p-2 bg-muted/30">
+              <p className="text-xs font-medium text-muted-foreground">
+                Sélectionner l'ancrage pour le lien retour:
+              </p>
+              <div className="space-y-1">
+                {selectedPdfAnchors.map((anchor) => (
+                  <button
+                    key={anchor.id}
+                    onClick={() => setSelected(anchor)}
+                    className={cn(
+                      "w-full text-left px-2 py-1.5 text-xs rounded transition-colors",
+                      selected.id === anchor.id
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-accent border border-transparent"
+                    )}
+                  >
+                    <p className="font-medium">{anchor.label}</p>
+                    {anchor.sublabel && (
+                      <p className="text-xs opacity-70">{anchor.sublabel}</p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {selected?.kind === "pdf" && bidirectional && selectedPdfAnchors.length === 0 && (
+            <div className="border rounded-md p-2 bg-yellow-500/10 border-yellow-500/30">
+              <p className="text-xs text-yellow-700 dark:text-yellow-600">
+                Ce PDF n'a pas d'ancrages. Créez d'abord un ancrage dans le PDF pour un lien bidirectionnel.
+              </p>
+            </div>
+          )}
 
           {error && (
             <p className="text-xs text-destructive bg-destructive/10 rounded px-3 py-2">

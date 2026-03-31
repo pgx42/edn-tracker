@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { usePdfStore } from "@/stores/pdf";
+import { useDiagramsStore } from "@/stores/diagrams";
 
 export type ResourceType = "pdf" | "item" | "error" | "anki_card" | "excalidraw";
 
@@ -20,14 +21,12 @@ export interface ResourceTarget {
 export function useNavigateToResource() {
   const navigate = useNavigate();
   const { setActivePdf, setCurrentPage } = usePdfStore();
+  const { setActiveDiagram } = useDiagramsStore();
 
   const navigateTo = (target: ResourceTarget) => {
     switch (target.type) {
       case "pdf": {
-        const numericId = parseInt(target.id, 10);
-        if (!isNaN(numericId)) {
-          setActivePdf(numericId);
-        }
+        setActivePdf(target.id);
         if (target.page !== undefined) {
           setCurrentPage(target.page);
         }
@@ -49,7 +48,8 @@ export function useNavigateToResource() {
         break;
       }
       case "excalidraw": {
-        navigate("/planning", { state: { openDiagramId: target.id } });
+        setActiveDiagram(target.id);
+        navigate("/diagrams");
         break;
       }
       default:

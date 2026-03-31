@@ -15,28 +15,45 @@ const TextLayer: React.FC<TextLayerProps> = ({ page, viewport }) => {
 
   React.useEffect(() => {
     const div = divRef.current;
-    if (!div) return;
+    if (!div) {
+      console.log(`[TextLayer] divRef is null!`);
+      return;
+    }
+
+    console.log(`[TextLayer] mounted, div element:`, div, "div.offsetWidth:", div.offsetWidth);
 
     let cancelled = false;
     let textLayerInstance: InstanceType<typeof PdfTextLayerRenderer> | null = null;
 
     const render = async () => {
       const textContent = await page.getTextContent();
+      console.log(`[TextLayer] Got ${textContent.items.length} text items, viewport:`, {
+        width: viewport.width,
+        height: viewport.height,
+        scale: viewport.scale,
+      });
+
       if (cancelled || !div) return;
 
       while (div.firstChild) {
         div.removeChild(div.firstChild);
       }
 
+      console.log(`[TextLayer] Creating TextLayerRenderer instance...`);
       textLayerInstance = new PdfTextLayerRenderer({
         textContentSource: textContent,
         container: div,
         viewport,
       });
+      console.log(`[TextLayer] Starting render()...`);
       try {
         await textLayerInstance.render();
+        console.log(`[TextLayer] Render complete, div now has ${div.children.length} children`);
+        if (div.children.length === 0) {
+          console.warn(`[TextLayer] WARNING: No children rendered even though render() succeeded!`);
+        }
       } catch (err) {
-        // cancelled or error
+        console.error(`[TextLayer] Render error:`, err);
       }
     };
 
@@ -63,7 +80,7 @@ const TextLayer: React.FC<TextLayerProps> = ({ page, viewport }) => {
         width: viewport.width,
         height: viewport.height,
         lineHeight: 1,
-        overflow: "hidden",
+        overflow: "visible",
         opacity: 1,
         userSelect: "text",
         WebkitUserSelect: "text",
@@ -97,9 +114,10 @@ export const PageTextLayerWrapper: React.FC<PageTextLayerWrapperProps> = ({
         p.cleanup();
         return;
       }
-      // Create viewport at CSS scale (scale / DPI_SCALE) so TextLayer dimensions match parent
-      const cssScale = scale / DPI_SCALE;
-      const vp = p.getViewport({ scale: cssScale });
+      // Use CSS scale (logical pixels), NOT canvas scale
+      // Canvas renders at scale=effectiveScale, but TextLayer should use scale/DPI_SCALE
+      // This ensures spans are in the same coordinate space as the CSS div
+      const vp = p.getViewport({ scale: scale / DPI_SCALE });
       setPage(p);
       setViewport(vp);
     };

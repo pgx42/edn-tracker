@@ -89,4 +89,14 @@ export interface GraphLink {
   linkType: string;
 }
 
-export type NavPage = "dashboard" | "pdfs" | "items" | "errors" | "planning" | "settings";
+export interface ExcalidrawDiagram {
+  id: string;
+  title: string;
+  file_path: string;
+  diagram_json: string;
+  item_ids: string | null;
+  created_at: string;
+  modified_at: string;
+}
+
+export type NavPage = "dashboard" | "pdfs" | "items" | "errors" | "diagrams" | "planning" | "settings";
