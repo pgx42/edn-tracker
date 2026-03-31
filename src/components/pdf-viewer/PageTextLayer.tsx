@@ -77,8 +77,8 @@ const TextLayer: React.FC<TextLayerProps> = ({ page, viewport }) => {
         position: "absolute",
         top: 0,
         left: 0,
-        width: viewport.width,
-        height: viewport.height,
+        width: "100%",
+        height: "100%",
         lineHeight: 1,
         overflow: "visible",
         opacity: 1,
@@ -114,9 +114,8 @@ export const PageTextLayerWrapper: React.FC<PageTextLayerWrapperProps> = ({
         p.cleanup();
         return;
       }
-      // Use CSS scale (logical pixels), NOT canvas scale
-      // Canvas renders at scale=effectiveScale, but TextLayer should use scale/DPI_SCALE
-      // This ensures spans are in the same coordinate space as the CSS div
+      // Use CSS scale (logical pixels) to match canvas coordinate space
+      // Canvas renders at scale/DPI_SCALE, so TextLayer spans position correctly
       const vp = p.getViewport({ scale: scale / DPI_SCALE });
       setPage(p);
       setViewport(vp);

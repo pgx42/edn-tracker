@@ -310,12 +310,19 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
 
       try {
         const page = await pdfDoc.getPage(pageNum);
-        const viewport = page.getViewport({ scale: effectiveScale });
+        // Use CSS scale (logical pixels) for viewport, not physical scale
+        const cssScale = effectiveScale / DPI_SCALE;
+        const viewport = page.getViewport({ scale: cssScale });
 
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        // Physical canvas dimensions (HiDPI — same pixel count as before)
+        canvas.width = Math.round(viewport.width * DPI_SCALE);
+        canvas.height = Math.round(viewport.height * DPI_SCALE);
+        // CSS size is set by `width: 100%, height: 100%` on canvas element
 
-        console.log(`[renderPage ${pageNum}] Canvas size set to`, { width: canvas.width, height: canvas.height });
+        console.log(`[renderPage ${pageNum}] Canvas size set to`, {
+          width: canvas.width, height: canvas.height,
+          viewportCssScale: viewport.scale
+        });
 
         const ctx = canvas.getContext("2d");
         if (!ctx) {
@@ -323,6 +330,9 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
           renderingPages.current.delete(pageNum);
           return;
         }
+
+        // Scale context for HiDPI rendering
+        ctx.scale(DPI_SCALE, DPI_SCALE);
 
         const renderTask = page.render({ canvasContext: ctx, viewport });
         activeRenderTasks.current.set(pageNum, renderTask);
