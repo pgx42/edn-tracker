@@ -345,8 +345,11 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
 
         console.log(`[renderPage ${pageNum}] Canvas size set to`, {
           physical: { w: canvas.width, h: canvas.height },
-          css: { w: vp.width, h: vp.height },
+          css: { w: canvas.style.width, h: canvas.style.height },
+          viewport: { w: vp.width, h: vp.height },
           dpr,
+          display: canvas.style.display,
+          position: canvas.style.position,
         });
 
         const ctx = canvas.getContext("2d");
@@ -514,12 +517,12 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     return () => topObserver.disconnect();
   }, [pdfDoc, pageCount, onPageChange]);
 
-  // Re-render all visible pages on scale change
+  // Re-render all visible pages on scale/dpr change (zoom)
   React.useEffect(() => {
     visiblePages.forEach((pageNum) => {
-      renderPage(pageNum);
+      renderPageRef.current(pageNum);
     });
-  }, [cssScale, dpr, renderPage, visiblePages]);
+  }, [cssScale, dpr]);
 
   const navigateTo = React.useCallback(
     (page: number) => {

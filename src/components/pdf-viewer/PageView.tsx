@@ -45,6 +45,9 @@ export const PageView: React.FC<PageViewProps> = ({
   onAnchorDoubleClick,
 }) => {
   const { width: cssWidth, height: cssHeight } = viewport;
+  React.useEffect(() => {
+    console.log(`[PageView ${pageNum}] Dimensions:`, { cssWidth, cssHeight, isVisible, viewport });
+  }, [pageNum, cssWidth, cssHeight, isVisible, viewport]);
 
   const [pdfPage, setPdfPage] = useState<PDFPageProxy | null>(null);
   const [_pageChars, setPageChars] = useState<PdfChar[]>([]);
