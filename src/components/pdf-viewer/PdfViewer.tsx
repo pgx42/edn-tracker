@@ -445,6 +445,13 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     };
   }, [pdfDoc, pageSize]);
 
+  // Render visible pages (initial render + visibility changes)
+  React.useEffect(() => {
+    console.log("[renderPage effect] Rendering pages:", Array.from(visiblePages).sort((a,b) => a-b));
+    visiblePages.forEach((pageNum) => {
+      renderPageRef.current(pageNum);
+    });
+  }, [visiblePages]);
 
   // Reset OCR tracking when PDF changes
   React.useEffect(() => {
