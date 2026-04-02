@@ -6,6 +6,7 @@ import { Items } from "@/pages/Items";
 import { Errors } from "@/pages/Errors";
 import { Diagrams } from "@/pages/Diagrams";
 import { Planning } from "@/pages/Planning";
+import { Anki } from "@/pages/Anki";
 import { Settings } from "@/pages/Settings";
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/errors" element={<Errors />} />
           <Route path="/diagrams" element={<Diagrams />} />
           <Route path="/planning" element={<Planning />} />
+          <Route path="/anki" element={<Anki />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>

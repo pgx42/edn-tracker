@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   Eye,
   EyeOff,
+  CreditCard,
 } from "lucide-react";
 
 export type ZoomMode = "fit-page" | "fit-width" | "custom";
@@ -42,6 +43,8 @@ export interface PdfToolbarProps {
   onToggleThumbnails: () => void;
   onToggleAnchors: () => void;
   onBackToLibrary?: () => void;
+  onCreateAnkiCard?: () => void;
+  hasSelectedAnchor?: boolean;
 }
 
 export const PdfToolbar: React.FC<PdfToolbarProps> = ({
@@ -67,6 +70,8 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
   onToggleThumbnails,
   onToggleAnchors,
   onBackToLibrary,
+  onCreateAnkiCard,
+  hasSelectedAnchor,
 }) => {
   return (
     <div className="flex items-center gap-2 px-3 py-2 border-b bg-card shrink-0 flex-wrap">
@@ -174,6 +179,15 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
             title="Show backlinks"
           >
             <PanelRight className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onCreateAnkiCard}
+            title={hasSelectedAnchor ? "Créer une carte depuis cet ancrage" : "Créer une carte Anki"}
+          >
+            <CreditCard className="h-4 w-4" />
           </Button>
         </>
       )}

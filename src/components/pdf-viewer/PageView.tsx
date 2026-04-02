@@ -1,22 +1,20 @@
 import * as React from "react";
-import type { PDFDocumentProxy } from "pdfjs-dist";
+import { useState, useEffect } from "react";
+import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
+import type { PdfViewport, PdfChar } from "@/lib/pdf-coords";
 import { AnnotationLayer, type Annotation } from "./AnnotationLayer";
-import { AnchorHighlight } from "./AnchorHighlight";
 import { AnchorSelectionLayer, type SelectionRect } from "./AnchorSelectionLayer";
-import { PageTextLayerWrapper } from "./PageTextLayer";
-import { OcrTextLayer, type OcrLine } from "./OcrTextLayer";
+import UnifiedTextLayer from "./UnifiedTextLayer";
+import { HighlightCanvas } from "./HighlightCanvas";
+import type { OcrLine } from "./OcrTextLayer";
 import type { Anchor } from "./AnchorCreationModal";
-
-const DPI_SCALE = 150 / 96;
 
 export interface PageViewProps {
   pageNum: number;
-  cssWidth: number;
-  cssHeight: number;
+  viewport: PdfViewport;
   isVisible: boolean;
   isCurrent: boolean;
   pdfDoc: PDFDocumentProxy | null;
-  effectiveScale: number;
   pdfId: string | null;
   anchors: Anchor[];
   annotations: Annotation[];
@@ -31,12 +29,10 @@ export interface PageViewProps {
 
 export const PageView: React.FC<PageViewProps> = ({
   pageNum,
-  cssWidth,
-  cssHeight,
+  viewport,
   isVisible,
   isCurrent,
   pdfDoc,
-  effectiveScale,
   pdfId,
   anchors,
   annotations,
@@ -48,39 +44,82 @@ export const PageView: React.FC<PageViewProps> = ({
   onSelectionComplete,
   onAnchorDoubleClick,
 }) => {
+  const { width: cssWidth, height: cssHeight } = viewport;
+
+  const [pdfPage, setPdfPage] = useState<PDFPageProxy | null>(null);
+  const [_pageChars, setPageChars] = useState<PdfChar[]>([]);
+
+  // Resolve PDFPageProxy from the document
+  useEffect(() => {
+    if (!pdfDoc || !isVisible) {
+      setPdfPage(null);
+      return;
+    }
+
+    let cancelled = false;
+    pdfDoc.getPage(pageNum).then((page) => {
+      if (!cancelled) setPdfPage(page);
+    });
+    return () => { cancelled = true; };
+  }, [pdfDoc, pageNum, isVisible]);
+
   return (
     <div
       key={pageNum}
       data-page={pageNum}
       id={`pdf-page-${pageNum}`}
-      className={`relative shadow-md bg-white ${isCurrent ? "ring-2 ring-primary ring-offset-2" : ""}`}
+      className={`relative shadow-md bg-white overflow-hidden ${isCurrent ? "ring-2 ring-primary ring-offset-2" : ""}`}
       style={{ width: cssWidth, height: cssHeight, position: "relative" }}
     >
       {isVisible ? (
         <>
           <canvas
             ref={canvasRef}
-            style={{ width: "100%", height: "100%", display: "block" }}
+            style={{
+              display: "block",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              zIndex: 10,
+              pointerEvents: "none",
+            }}
           />
-          {pdfDoc && <PageTextLayerWrapper pdfDoc={pdfDoc} pageNum={pageNum} scale={effectiveScale} />}
-          {ocrLines && ocrLines.length > 0 && (
-            <OcrTextLayer lines={ocrLines} pageWidth={cssWidth} pageHeight={cssHeight} />
+          {pdfPage && (
+            <UnifiedTextLayer
+              mode={ocrLines && ocrLines.length > 0 ? 'ocr' : 'native'}
+              pdfPage={pdfPage}
+              pageNum={pageNum}
+              ocrLines={ocrLines}
+              viewport={viewport}
+              cssScale={viewport.scale}
+              isVisible={isVisible}
+              onCharsReady={setPageChars}
+            />
+          )}
+          {/* Fallback message if no text layer loaded */}
+          {pdfPage && !_pageChars.length && ocrLines && ocrLines.length === 0 && (
+            <div className="absolute inset-0 text-xs text-muted-foreground/50 flex items-center justify-center pointer-events-none">
+              Loading text layer...
+            </div>
           )}
           <AnnotationLayer
             pageNumber={pageNum}
             annotations={annotations}
             onAnnotationClick={onAnnotationClick}
-            scale={1 / DPI_SCALE}
+            scale={1}
             pageWidth={cssWidth}
             pageHeight={cssHeight}
           />
           {pdfId !== null && showAnchors && (
-            <AnchorHighlight
+            <HighlightCanvas
               anchors={anchors}
+              annotations={annotations}
               pageNumber={pageNum}
-              pageWidth={cssWidth}
-              pageHeight={cssHeight}
+              viewport={viewport}
+              dpr={window.devicePixelRatio ?? 1.0}
+              showAnchors={showAnchors}
               onAnchorDoubleClick={onAnchorDoubleClick}
+              onAnnotationClick={onAnnotationClick}
             />
           )}
           {pdfId !== null && cssWidth > 0 && cssHeight > 0 && isVisible && (

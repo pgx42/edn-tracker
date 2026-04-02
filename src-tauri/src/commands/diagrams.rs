@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ExcalidrawDiagram {
@@ -124,4 +125,95 @@ pub async fn delete_diagram(
         .map_err(|e| format!("Failed to delete diagram: {}", e))?;
 
     Ok(())
+}
+
+// ─── Anchor Commands (Excalidraw diagrams) ────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct LinkResult {
+    pub id: String,
+    pub source_anchor_id: String,
+    pub target_anchor_id: Option<String>,
+    pub target_type: Option<String>,
+    pub target_id: Option<String>,
+    pub link_type: String,
+    pub bidirectional: Option<bool>,
+    pub created_by: Option<String>,
+    pub created_at: Option<String>,
+}
+
+/// Create an anchor for the entire Excalidraw diagram (idempotent).
+/// Returns the anchor ID (existing or newly created).
+#[tauri::command]
+pub async fn create_diagram_anchor(
+    diagram_id: String,
+    db: tauri::State<'_, crate::db::DbPool>,
+) -> Result<String, String> {
+    // Check if anchor already exists for this diagram
+    let existing: Option<(String,)> = sqlx::query_as(
+        "SELECT id FROM anchors
+         WHERE source_type = 'excalidraw' AND source_id = ?
+         LIMIT 1",
+    )
+    .bind(&diagram_id)
+    .fetch_optional(db.inner())
+    .await
+    .map_err(|e| format!("Failed to check existing anchor: {}", e))?;
+
+    if let Some((anchor_id,)) = existing {
+        return Ok(anchor_id);
+    }
+
+    // Create new anchor
+    let anchor_id = Uuid::new_v4().to_string();
+
+    sqlx::query(
+        "INSERT INTO anchors (id, type, source_type, source_id, label)
+         VALUES (?, 'excalidraw_diagram', 'excalidraw', ?, ?)",
+    )
+    .bind(&anchor_id)
+    .bind(&diagram_id)
+    .bind("Diagramme")
+    .execute(db.inner())
+    .await
+    .map_err(|e| format!("Failed to create anchor: {}", e))?;
+
+    Ok(anchor_id)
+}
+
+/// Get all links for an Excalidraw diagram.
+#[tauri::command]
+pub async fn get_diagram_links(
+    diagram_id: String,
+    db: tauri::State<'_, crate::db::DbPool>,
+) -> Result<Vec<LinkResult>, String> {
+    // Get the anchor ID for this diagram
+    let anchor_row: Option<(String,)> = sqlx::query_as(
+        "SELECT id FROM anchors
+         WHERE source_type = 'excalidraw' AND source_id = ?
+         LIMIT 1",
+    )
+    .bind(&diagram_id)
+    .fetch_optional(db.inner())
+    .await
+    .map_err(|e| format!("Failed to fetch anchor: {}", e))?;
+
+    let anchor_id = match anchor_row {
+        Some((id,)) => id,
+        None => return Ok(Vec::new()),
+    };
+
+    // Get all outgoing links from this anchor
+    let links: Vec<LinkResult> = sqlx::query_as(
+        "SELECT id, source_anchor_id, target_anchor_id, target_type, target_id,
+                link_type, bidirectional, created_by, created_at
+         FROM links WHERE source_anchor_id = ?
+         ORDER BY created_at DESC",
+    )
+    .bind(&anchor_id)
+    .fetch_all(db.inner())
+    .await
+    .map_err(|e| format!("Failed to fetch links: {}", e))?;
+
+    Ok(links)
 }

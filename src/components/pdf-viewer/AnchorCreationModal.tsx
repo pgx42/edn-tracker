@@ -32,6 +32,7 @@ interface AnchorCreationModalProps {
   pdfId: string;
   page: number;
   selection: SelectionRect | null;
+  suggestedSnippet?: string;
   onClose: () => void;
   onAnchorCreated: (anchorId: string) => void;
 }
@@ -41,6 +42,7 @@ export const AnchorCreationModal: React.FC<AnchorCreationModalProps> = ({
   pdfId,
   page,
   selection,
+  suggestedSnippet,
   onClose,
   onAnchorCreated,
 }) => {
@@ -49,14 +51,14 @@ export const AnchorCreationModal: React.FC<AnchorCreationModalProps> = ({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Reset form when modal opens
+  // Reset form when modal opens, auto-fill snippet if provided
   React.useEffect(() => {
     if (open) {
       setLabel("");
-      setTextSnippet("");
+      setTextSnippet(suggestedSnippet || "");
       setError(null);
     }
-  }, [open]);
+  }, [open, suggestedSnippet]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

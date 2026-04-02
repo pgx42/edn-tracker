@@ -82,7 +82,20 @@ export const ThumbnailList: React.FC<ThumbnailListProps> = ({
   const currentRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    currentRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const el = currentRef.current;
+    const container = containerRef.current;
+    if (!el || !container) return;
+
+    const elTop = el.offsetTop;
+    const elBottom = elTop + el.offsetHeight;
+    const containerScrollTop = container.scrollTop;
+    const containerBottom = containerScrollTop + container.clientHeight;
+
+    if (elTop < containerScrollTop) {
+      container.scrollTop = elTop;
+    } else if (elBottom > containerBottom) {
+      container.scrollTop = elBottom - container.clientHeight;
+    }
   }, [currentPage]);
 
   const handleScroll = React.useCallback(() => {

@@ -263,7 +263,7 @@ export function Diagrams() {
     </div>
   ) : (
     // Editor view
-    <div className="h-screen flex flex-col bg-background">
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <div className="border-b px-6 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <button
@@ -278,7 +278,7 @@ export function Diagrams() {
           </Badge>
         </div>
       </div>
-      <div className="flex-1 overflow-hidden">
+      <div style={{ flex: 1, overflow: "hidden", display: "flex" }}>
         <ExcalidrawEditor
           diagram={activeDiagram}
           onSave={handleSaveDiagram}

@@ -6,6 +6,7 @@ import {
   AlertCircle,
   PenTool,
   Calendar,
+  CreditCard,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -25,6 +26,7 @@ const navItems = [
   { to: "/errors", label: "Error Notebook", icon: AlertCircle },
   { to: "/diagrams", label: "Schémas", icon: PenTool },
   { to: "/planning", label: "Planning", icon: Calendar },
+  { to: "/anki", label: "Anki", icon: CreditCard },
 ];
 
 export function Sidebar() {

@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { usePdfStore } from "@/stores/pdf";
 import { useDiagramsStore } from "@/stores/diagrams";
+import { useAnkiStore } from "@/stores/anki";
 
 export type ResourceType = "pdf" | "item" | "error" | "anki_card" | "excalidraw";
 
@@ -43,8 +44,8 @@ export function useNavigateToResource() {
         break;
       }
       case "anki_card": {
-        // Anki cards currently live under Planning; pass state for the panel
-        navigate("/planning", { state: { openCardId: parseInt(target.id, 10) } });
+        useAnkiStore.getState().setHighlightedCardId(target.id);
+        navigate("/anki");
         break;
       }
       case "excalidraw": {

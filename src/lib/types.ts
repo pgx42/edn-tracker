@@ -72,14 +72,49 @@ export interface StudySession {
   completed: boolean;
 }
 
-export interface AnkiCard {
-  id: number;
-  itemId: number;
-  front: string;
-  back: string;
-  deckName: string;
-  exported: boolean;
-  createdAt: string;
+export interface AnkiDeck {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  last_exported_at: string | null;
+}
+
+export interface AnkiNoteRecord {
+  id: string;
+  deck_id: string;
+  deck_name?: string;
+  note_type: string;
+  question: string;
+  answer: string;
+  extra_field: string | null;
+  source_pdf_ref: string | null;
+  source_anchor_id: string | null;
+  tags: string | null;
+  created_at: string;
+  modified_at: string;
+  anki_created_at: string | null;
+}
+
+export interface CreateAnkiCardInput {
+  deck_id: string;
+  question: string;
+  answer: string;
+  extra_field?: string | null;
+  source_anchor_id?: string | null;
+  source_pdf_ref?: string | null;
+  tags?: string | null;
+  note_type?: string;
+}
+
+export type AnkiCard = AnkiNoteRecord;
+
+export interface AnkiCardCreationContext {
+  prefillQuestion?: string;
+  prefillAnswer?: string;
+  sourceAnchorId?: string;
+  sourceLabel?: string;
+  sourcePdfTitle?: string;
 }
 
 export interface GraphLink {
@@ -99,4 +134,4 @@ export interface ExcalidrawDiagram {
   modified_at: string;
 }
 
-export type NavPage = "dashboard" | "pdfs" | "items" | "errors" | "diagrams" | "planning" | "settings";
+export type NavPage = "dashboard" | "pdfs" | "items" | "errors" | "diagrams" | "planning" | "anki" | "settings";

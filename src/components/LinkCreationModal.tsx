@@ -187,19 +187,19 @@ async function searchErrors(query: string): Promise<SearchResult[]> {
 async function searchCards(query: string): Promise<SearchResult[]> {
   try {
     interface BackendCard {
-      id: number;
-      front: string;
+      id: string;
+      question: string;
       deck_name?: string;
     }
     const cards = await invoke<BackendCard[]>("get_anki_cards", {});
     const q = query.toLowerCase();
     return cards
-      .filter((c) => !q || c.front.toLowerCase().includes(q))
+      .filter((c) => !q || c.question.toLowerCase().includes(q))
       .slice(0, 8)
       .map((c) => ({
         kind: "anki_card" as ResourceKind,
-        id: String(c.id),
-        label: c.front,
+        id: c.id,
+        label: c.question,
         sublabel: c.deck_name,
       }));
   } catch {
