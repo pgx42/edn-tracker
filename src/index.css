@@ -60,122 +60,41 @@
     -webkit-user-select: none;
   }
 
-  input, textarea, [contenteditable] {
+  input, textarea, [contenteditable], .textLayer, .ocr-text-layer {
     user-select: text;
     -webkit-user-select: text;
   }
 }
 
-/* pdf.js text layer */
-.textLayer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  overflow: hidden;
-  line-height: 1;
-  text-align: initial;
-  z-index: 2;
-  -webkit-user-select: text;
-  user-select: text;
-  --scale-factor: 1;
-}
+/* ── PDF.js text layer — minimal overrides only, let pdf_viewer.css rule ── */
 
-.textLayer span,
-.textLayer br {
-  color: transparent;
-  position: absolute;
-  white-space: pre;
-  cursor: text;
-  transform-origin: 0% 0%;
-  -webkit-user-select: text;
-  user-select: text;
-}
-
-.textLayer .highlight {
-  margin: -1px;
-  padding: 1px;
-  background-color: rgba(180, 0, 170, 0.2);
-  border-radius: 4px;
-}
-
-.textLayer .highlight.appended {
-  position: initial;
-}
-
-.textLayer .highlight.begin {
-  border-radius: 4px 0px 0px 4px;
-}
-
-.textLayer .highlight.end {
-  border-radius: 0px 4px 4px 0px;
-}
-
-.textLayer .highlight.middle {
-  border-radius: 0px;
-}
-
-.textLayer .highlight.selected {
-  background-color: rgba(0, 100, 0, 0.2);
-}
-
-.textLayer ::selection {
-  background: rgba(0, 0, 255, 0.2);
-}
-
-/* Native text layer (pdfjs TextLayer) */
-.textLayer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 12;
-  overflow: visible;
-  line-height: 1;
-  user-select: text;
-  -webkit-user-select: text;
-  pointer-events: auto;
-  opacity: 1;
-  transform-origin: 0 0;
-  outline: none;
-}
-
-/* Spans rendered by pdfjs TextLayer */
+/* WebKit/-webkit- aliases not covered by pdf_viewer.css */
+.textLayer,
 .textLayer :is(span, br) {
-  color: transparent;
-  position: absolute;
-  white-space: pre;
-  cursor: text;
-  transform-origin: 0% 0%;
-  user-select: text;
-}
-
-.textLayer :is(span, br):focus {
-  outline: none;
-}
-
-.textLayer ::selection {
-  background: rgba(0, 100, 255, 0.2);
-}
-
-/* OCR overlay text layer */
-.unified-text-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 12;
-  user-select: text;
   -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Dark-theme selection color */
+.textLayer ::selection {
+  background: rgba(59, 130, 246, 0.35);
+}
+
+/* OCR overlay text layer (scanned PDFs) */
+.ocr-text-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.ocr-text-layer span {
+  -webkit-user-select: text;
+  user-select: text;
   pointer-events: auto;
-  outline: none;
 }
 
-.unified-text-layer .ocr-char:focus {
-  outline: none;
-}
-
-.unified-text-layer ::selection {
-  background: rgba(0, 100, 255, 0.2);
+.ocr-text-layer ::selection {
+  background: rgba(59, 130, 246, 0.35);
 }

@@ -23,25 +23,13 @@ export const OcrTextLayer: React.FC<OcrTextLayerProps> = ({
   pageHeight,
 }) => {
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        width: pageWidth,
-        height: pageHeight,
-        pointerEvents: "none",
-        userSelect: "text",
-      }}
-    >
+    <div className="ocr-text-layer">
       {lines.map((line, i) => {
         const x = line.bbox[0] * pageWidth;
         const y = line.bbox[1] * pageHeight;
         const w = line.bbox[2] * pageWidth;
         const h = line.bbox[3] * pageHeight;
-
-        // Approximate font size from line height
-        const fontSize = Math.max(8, h * 0.9);
+        const fontSize = Math.max(8, h * 0.85);
 
         return (
           <span
@@ -54,13 +42,11 @@ export const OcrTextLayer: React.FC<OcrTextLayerProps> = ({
               height: h,
               fontSize: `${fontSize}px`,
               color: "transparent",
-              pointerEvents: "auto",
               whiteSpace: "nowrap",
               overflow: "hidden",
               lineHeight: 1,
               transformOrigin: "top left",
             }}
-            title={`Confidence: ${(line.confidence * 100).toFixed(1)}%`}
           >
             {line.text}
           </span>
