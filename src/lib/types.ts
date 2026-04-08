@@ -4,7 +4,7 @@ export interface PdfDocument {
   id: string;
   title: string;
   file_path: string;
-  doc_type?: "college" | "poly" | "lca" | "annale" | "other";
+  doc_type?: "college" | "poly" | "lca" | "annale" | "lisa" | "other";
   num_pages: number;
   created_at?: string;
   has_native_text?: boolean;
@@ -91,6 +91,7 @@ export interface AnkiNoteRecord {
   source_pdf_ref: string | null;
   source_anchor_id: string | null;
   tags: string | null;
+  anki_note_id: number | null;
   created_at: string;
   modified_at: string;
   anki_created_at: string | null;

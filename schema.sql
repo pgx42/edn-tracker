@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS pdf_documents (
     id TEXT PRIMARY KEY,          -- UUID
     title TEXT NOT NULL,
     file_path TEXT NOT NULL,      -- relative to ~/Library/Application Support/com.edn-tracker/resources/pdf/
-    doc_type TEXT CHECK (doc_type IN ('college', 'poly', 'lca', 'annale', 'other')) DEFAULT 'other',
+    doc_type TEXT CHECK (doc_type IN ('college', 'poly', 'lca', 'annale', 'lisa', 'other')) DEFAULT 'other',
     num_pages INTEGER NOT NULL,
     has_native_text BOOLEAN DEFAULT TRUE,  -- true if PDF has extractable text
     is_scanned BOOLEAN DEFAULT FALSE,      -- true if text/page ratio indicates scan

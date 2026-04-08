@@ -10,6 +10,9 @@ import {
   ChevronRight,
   Layers,
   FolderOpen,
+  RefreshCw,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +28,7 @@ export function Anki() {
   const {
     collectionPath,
     isCollectionConnected,
+    ankiConnectAvailable,
     decks,
     cards,
     isLoadingDecks,
@@ -36,6 +40,7 @@ export function Anki() {
     setLoadingCards,
     setCollectionPath,
     setHighlightedCardId,
+    setAnkiConnectAvailable,
     addCard,
     error: storeError,
     setError: setStoreError,
@@ -45,16 +50,20 @@ export function Anki() {
   const [deckFilter, setDeckFilter] = React.useState("all");
   const [showCreateModal, setShowCreateModal] = React.useState(false);
   const [expandedCards, setExpandedCards] = React.useState<Set<string>>(new Set());
+  const [isSyncing, setIsSyncing] = React.useState(false);
 
   const highlightedRef = React.useRef<HTMLDivElement | null>(null);
 
-  // Load decks and cards on mount
+  // Check AnkiConnect availability and load data on mount
   React.useEffect(() => {
     const load = async () => {
       setLoadingDecks(true);
       setLoadingCards(true);
       setStoreError(null);
       try {
+        const connected = await invoke<boolean>("anki_check_connection");
+        setAnkiConnectAvailable(connected);
+
         const [loadedDecks, loadedCards] = await Promise.all([
           invoke<AnkiDeck[]>("list_anki_decks"),
           invoke<AnkiNoteRecord[]>("get_anki_cards"),
@@ -71,7 +80,7 @@ export function Anki() {
     load();
   }, []);
 
-  // Auto-scroll and clear highlighted card
+  // Auto-scroll to highlighted card
   React.useEffect(() => {
     if (highlightedCardId && highlightedRef.current) {
       highlightedRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -85,9 +94,34 @@ export function Anki() {
       const path = await invoke<string>("select_anki_collection");
       if (path) {
         setCollectionPath(path);
+        // Reload decks after selecting collection
+        const loadedDecks = await invoke<AnkiDeck[]>("list_anki_decks");
+        setDecks(loadedDecks);
       }
     } catch (err) {
       setStoreError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    setStoreError(null);
+    try {
+      // Reload decks first (syncs to local DB)
+      const loadedDecks = await invoke<AnkiDeck[]>("list_anki_decks");
+      setDecks(loadedDecks);
+
+      // Sync all notes from Anki
+      const synced = await invoke<AnkiNoteRecord[]>("anki_sync_notes", { deckName: null });
+      if (synced.length > 0) {
+        // Reload local notes to get fresh state
+        const loadedCards = await invoke<AnkiNoteRecord[]>("get_anki_cards");
+        setCards(loadedCards);
+      }
+    } catch (err) {
+      setStoreError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -146,30 +180,70 @@ export function Anki() {
                 <span className="font-medium">{decks.length} paquet{decks.length !== 1 ? "s" : ""}</span>
               </p>
             </div>
-            <Button size="sm" onClick={() => setShowCreateModal(true)} className="gap-1.5">
-              <Plus className="h-4 w-4" />
-              Nouvelle carte
-            </Button>
+            <div className="flex items-center gap-2">
+              {ankiConnectAvailable && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleSync}
+                  disabled={isSyncing}
+                  className="gap-1.5"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", isSyncing && "animate-spin")} />
+                  Sync
+                </Button>
+              )}
+              <Button size="sm" onClick={() => setShowCreateModal(true)} className="gap-1.5">
+                <Plus className="h-4 w-4" />
+                Nouvelle carte
+              </Button>
+            </div>
           </div>
 
-          {/* Collection status */}
-          <div className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-            {isCollectionConnected ? (
-              <>
-                <CheckCircle className="h-4 w-4 text-green-400 shrink-0" />
-                <span className="flex-1 truncate text-xs text-muted-foreground" title={collectionPath ?? ""}>
-                  {collectionPath ?? "Collection connectée"}
-                </span>
-              </>
-            ) : (
-              <>
-                <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
-                <span className="flex-1 text-xs text-muted-foreground">Aucune collection connectée</span>
-                <Button size="sm" variant="outline" className="h-6 text-xs px-2" onClick={handleSelectCollection}>
-                  <FolderOpen className="h-3.5 w-3.5 mr-1" />
-                  Sélectionner
-                </Button>
-              </>
+          {/* Connection status */}
+          <div className="flex flex-col gap-1.5">
+            {/* AnkiConnect status */}
+            <div className={cn(
+              "flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs",
+              ankiConnectAvailable ? "border-green-500/30 bg-green-500/5" : "border-muted"
+            )}>
+              {ankiConnectAvailable ? (
+                <>
+                  <Wifi className="h-3.5 w-3.5 text-green-400 shrink-0" />
+                  <span className="text-green-400 font-medium">AnkiConnect actif</span>
+                  <span className="text-muted-foreground ml-auto">port 8765</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-muted-foreground">AnkiConnect indisponible</span>
+                  <span className="text-muted-foreground/60 ml-auto text-[11px]">ouvrez Anki + plugin</span>
+                </>
+              )}
+            </div>
+
+            {/* Collection file (fallback) */}
+            {!ankiConnectAvailable && (
+              <div className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs">
+                {isCollectionConnected ? (
+                  <>
+                    <CheckCircle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                    <span className="flex-1 truncate text-muted-foreground" title={collectionPath ?? ""}>
+                      {collectionPath ?? "Collection connectée"}
+                    </span>
+                    <span className="text-amber-400/80 shrink-0">lecture seule</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                    <span className="flex-1 text-muted-foreground">Aucune collection</span>
+                    <Button size="sm" variant="outline" className="h-6 text-xs px-2" onClick={handleSelectCollection}>
+                      <FolderOpen className="h-3 w-3 mr-1" />
+                      Sélectionner
+                    </Button>
+                  </>
+                )}
+              </div>
             )}
           </div>
 
@@ -231,14 +305,20 @@ export function Anki() {
               <p className="text-sm">Chargement des cartes...</p>
             </div>
           ) : storeError ? (
-            <div className="flex flex-col items-center justify-center h-48 gap-2 text-red-400">
+            <div className="flex flex-col items-center justify-center h-48 gap-2 text-red-400 px-4 text-center">
               <AlertCircle className="h-8 w-8" />
               <p className="text-sm">{storeError}</p>
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
               <Search className="h-8 w-8 opacity-30" />
-              <p className="text-sm">Aucune carte trouvée</p>
+              <p className="text-sm">
+                {cards.length === 0
+                  ? ankiConnectAvailable
+                    ? "Appuyez sur Sync pour importer vos cartes Anki"
+                    : "Aucune carte — créez-en une ou connectez AnkiConnect"
+                  : "Aucune carte trouvée"}
+              </p>
             </div>
           ) : (
             filtered.map((card) => {
@@ -246,6 +326,7 @@ export function Anki() {
               const isHighlighted = highlightedCardId === card.id;
               const deckName = decks.find((d) => d.id === card.deck_id)?.name ?? card.deck_name ?? card.deck_id;
               const tagList = card.tags ? card.tags.split(/\s+/).filter(Boolean) : [];
+              const isSynced = card.anki_note_id !== null && card.anki_note_id !== undefined;
 
               return (
                 <div
@@ -274,7 +355,12 @@ export function Anki() {
                           <Badge variant="outline" className="text-xs py-0 px-1.5">
                             {deckName}
                           </Badge>
-                          {tagList.map((tag) => (
+                          {isSynced && (
+                            <Badge variant="secondary" className="text-xs py-0 px-1.5 text-green-400 border-green-500/30">
+                              Anki
+                            </Badge>
+                          )}
+                          {tagList.filter(t => t !== "edn-tracker").map((tag) => (
                             <Badge
                               key={tag}
                               variant="secondary"
@@ -325,10 +411,16 @@ export function Anki() {
         </div>
       </div>
 
-      {/* Right panel: placeholder */}
+      {/* Right panel */}
       <div className="flex-1 hidden lg:flex flex-col items-center justify-center gap-3 text-muted-foreground">
         <Layers className="h-12 w-12 opacity-20" />
         <p className="text-sm">Sélectionnez une carte pour voir les détails</p>
+        {ankiConnectAvailable && cards.length === 0 && (
+          <Button variant="outline" size="sm" onClick={handleSync} disabled={isSyncing} className="mt-2 gap-2">
+            <RefreshCw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+            Importer depuis Anki
+          </Button>
+        )}
       </div>
 
       <AnkiCardCreationModal

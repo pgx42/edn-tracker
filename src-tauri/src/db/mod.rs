@@ -83,7 +83,7 @@ async fn run_schema(pool: &SqlitePool) -> Result<()> {
             id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
             file_path TEXT NOT NULL,
-            doc_type TEXT CHECK (doc_type IN ('college', 'poly', 'lca', 'annale', 'other')) DEFAULT 'other',
+            doc_type TEXT CHECK (doc_type IN ('college', 'poly', 'lca', 'annale', 'lisa', 'other')) DEFAULT 'other',
             num_pages INTEGER NOT NULL,
             has_native_text BOOLEAN DEFAULT TRUE,
             is_scanned BOOLEAN DEFAULT FALSE,
@@ -183,6 +183,7 @@ async fn run_schema(pool: &SqlitePool) -> Result<()> {
             source_pdf_ref TEXT,
             source_anchor_id TEXT,
             tags TEXT,
+            anki_note_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             anki_created_at TIMESTAMP,
@@ -341,6 +342,12 @@ async fn run_schema(pool: &SqlitePool) -> Result<()> {
     .execute(pool)
     .await
     .context("Failed to insert settings")?;
+
+    // Migrations: add columns that may not exist on older DB files
+    // SQLite doesn't support "ADD COLUMN IF NOT EXISTS", so we ignore the error if the column exists
+    let _ = sqlx::query("ALTER TABLE anki_notes ADD COLUMN anki_note_id INTEGER")
+        .execute(pool)
+        .await;
 
     info!("Schema applied successfully");
     Ok(())

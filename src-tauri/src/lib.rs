@@ -70,6 +70,7 @@ pub fn run() {
             commands::diagrams::delete_diagram,
             commands::diagrams::create_diagram_anchor,
             commands::diagrams::get_diagram_links,
+            commands::anki::anki_check_connection,
             commands::anki::select_anki_collection,
             commands::anki::get_anki_collection_path,
             commands::anki::list_anki_decks,
@@ -77,6 +78,7 @@ pub fn run() {
             commands::anki::get_anki_cards,
             commands::anki::list_anki_notes,
             commands::anki::create_anki_deck,
+            commands::anki::anki_sync_notes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

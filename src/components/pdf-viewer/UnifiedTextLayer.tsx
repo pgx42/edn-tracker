@@ -64,7 +64,6 @@ const UnifiedTextLayer: React.FC<UnifiedTextLayerProps> = ({
         });
 
         await textLayerInstance.render();
-        console.log(`[UnifiedTextLayer] Native mode rendered for page ${pageNum}`);
 
         // Callback optionnel — on peut extraire les chars si nécessaire
         // Pour maintenant, juste notifier que c'est prêt
@@ -142,7 +141,6 @@ const UnifiedTextLayer: React.FC<UnifiedTextLayerProps> = ({
     }
 
     div.appendChild(fragment);
-    console.log(`[UnifiedTextLayer] OCR mode rendered ${globalCharIndex} chars for page ${pageNum}`);
     onCharsReady?.([]);
   }, [ocrLines, viewport.height, isVisible, pageNum]);
 

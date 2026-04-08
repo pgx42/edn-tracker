@@ -6,6 +6,7 @@ interface AnkiState {
   // Connection
   collectionPath: string | null;
   isCollectionConnected: boolean;
+  ankiConnectAvailable: boolean;
 
   // Decks loaded from the local anki_decks table
   decks: AnkiDeck[];
@@ -37,6 +38,7 @@ interface AnkiState {
   setExporting: (exporting: boolean) => void;
   setHighlightedCardId: (id: string | null) => void;
   setError: (error: string | null) => void;
+  setAnkiConnectAvailable: (available: boolean) => void;
 }
 
 export const useAnkiStore = create<AnkiState>()(
@@ -44,6 +46,7 @@ export const useAnkiStore = create<AnkiState>()(
     (set) => ({
       collectionPath: null,
       isCollectionConnected: false,
+      ankiConnectAvailable: false,
       decks: [],
       isLoadingDecks: false,
       cards: [],
@@ -70,6 +73,7 @@ export const useAnkiStore = create<AnkiState>()(
       setExporting: (exporting) => set({ isExporting: exporting }),
       setHighlightedCardId: (id) => set({ highlightedCardId: id }),
       setError: (error) => set({ error }),
+      setAnkiConnectAvailable: (available) => set({ ankiConnectAvailable: available }),
     }),
     {
       name: "edn-anki-storage",

@@ -1,8 +1,23 @@
+/**
+ * PdfViewer — built on pdfjs-dist PDFViewer (the same engine as Firefox).
+ * All page rendering, virtual scrolling and zoom are handled by PDF.js itself.
+ * EDN-specific features (anchors, annotations, OCR) are injected as React
+ * overlays via createPortal into each PDF.js page div.
+ */
 import * as React from "react";
+import * as ReactDOM from "react-dom";
 import * as pdfjs from "pdfjs-dist";
-import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
-import type { Annotation } from "./AnnotationLayer";
-import type { SelectionRect } from "./AnchorSelectionLayer";
+import type { PDFDocumentProxy } from "pdfjs-dist";
+// @ts-ignore — types live in types/web/pdf_viewer.d.ts; classes in web/pdf_viewer.mjs
+import { PDFViewer, EventBus, PDFLinkService } from "pdfjs-dist/web/pdf_viewer";
+import "pdfjs-dist/web/pdf_viewer.css";
+import { invoke } from "@tauri-apps/api/core";
+import { Loader2, AlertCircle } from "lucide-react";
+
+import { AnnotationLayer, type Annotation } from "./AnnotationLayer";
+import { AnchorSelectionLayer, type SelectionRect } from "./AnchorSelectionLayer";
+import { HighlightCanvas } from "./HighlightCanvas";
+import { OcrTextLayer, type OcrLine } from "./OcrTextLayer";
 import { AnchorCreationModal, type Anchor } from "./AnchorCreationModal";
 import { BacklinksPanel } from "@/components/BacklinksPanel";
 import { LinkCreationModal } from "@/components/LinkCreationModal";
@@ -10,36 +25,28 @@ import { AnkiCardCreationModal } from "@/components/AnkiCardCreationModal";
 import { FloatingCommentPanel } from "./FloatingCommentPanel";
 import { ThumbnailList } from "./PdfThumbnails";
 import { PdfToolbar, type ZoomMode } from "./PdfToolbar";
-import { PageView } from "./PageView";
 import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizablePanelResizeHandle,
   usePanelRef,
 } from "@/components/ui/resizable";
-import { buildPdfViewport, type PdfViewport } from "@/lib/pdf-coords";
-import { invoke } from "@tauri-apps/api/core";
-import { Loader2, AlertCircle } from "lucide-react";
-import { useAnkiStore } from "@/stores/anki";
+import type { PdfViewport } from "@/lib/pdf-coords";
 import type { AnkiCardCreationContext } from "@/lib/types";
 
 // Polyfill requestIdleCallback for Tauri WebView
 if (typeof (globalThis as any).requestIdleCallback === "undefined") {
-  (globalThis as any).requestIdleCallback = (callback: IdleRequestCallback) => {
-    return setTimeout(callback, 0) as unknown as number;
-  };
-  (globalThis as any).cancelIdleCallback = (id: number) => {
-    clearTimeout(id);
-  };
+  (globalThis as any).requestIdleCallback = (cb: IdleRequestCallback) =>
+    setTimeout(cb, 0) as unknown as number;
+  (globalThis as any).cancelIdleCallback = (id: number) => clearTimeout(id);
 }
 
-// Configure pdf.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url
 ).toString();
 
-const LOAD_TIMEOUT_MS = 30000;
+// ─── Public props ──────────────────────────────────────────────────────────────
 
 export interface PdfViewerProps {
   pdfPath: string | null;
@@ -51,7 +58,81 @@ export interface PdfViewerProps {
   onBackToLibrary?: () => void;
 }
 
-// ---- Main PdfViewer ----
+// ─── Per-page overlay ──────────────────────────────────────────────────────────
+
+interface RenderedPageInfo {
+  /** The div element PDF.js created for this page — portal target */
+  div: Element;
+  viewport: PdfViewport;
+}
+
+interface PageOverlayProps {
+  pageNum: number;
+  viewport: PdfViewport;
+  pdfId: string | null;
+  anchors: Anchor[];
+  annotations: Annotation[];
+  selectionMode: boolean;
+  showAnchors: boolean;
+  ocrLines?: OcrLine[];
+  onSelectionComplete: (rect: SelectionRect, page: number) => void;
+  onAnchorDoubleClick?: (anchor: Anchor, x: number, y: number) => void;
+  onAnnotationClick?: (annotation: Annotation) => void;
+}
+
+const PageOverlay: React.FC<PageOverlayProps> = ({
+  pageNum,
+  viewport,
+  pdfId,
+  anchors,
+  annotations,
+  selectionMode,
+  showAnchors,
+  ocrLines,
+  onSelectionComplete,
+  onAnchorDoubleClick,
+  onAnnotationClick,
+}) => (
+  <>
+    {ocrLines && ocrLines.length > 0 && (
+      <OcrTextLayer
+        lines={ocrLines}
+        pageWidth={viewport.width}
+        pageHeight={viewport.height}
+      />
+    )}
+    <AnnotationLayer
+      pageNumber={pageNum}
+      annotations={annotations}
+      onAnnotationClick={onAnnotationClick}
+      scale={1}
+      pageWidth={viewport.width}
+      pageHeight={viewport.height}
+    />
+    {pdfId !== null && showAnchors && (
+      <HighlightCanvas
+        anchors={anchors}
+        annotations={annotations}
+        pageNumber={pageNum}
+        viewport={viewport}
+        dpr={window.devicePixelRatio ?? 1}
+        showAnchors={showAnchors}
+        onAnchorDoubleClick={onAnchorDoubleClick}
+        onAnnotationClick={onAnnotationClick}
+      />
+    )}
+    {pdfId !== null && viewport.width > 0 && viewport.height > 0 && (
+      <AnchorSelectionLayer
+        active={selectionMode}
+        pageWidth={viewport.width}
+        pageHeight={viewport.height}
+        onSelectionComplete={(rect) => onSelectionComplete(rect, pageNum)}
+      />
+    )}
+  </>
+);
+
+// ─── Main component ────────────────────────────────────────────────────────────
 
 export const PdfViewer: React.FC<PdfViewerProps> = ({
   pdfPath,
@@ -62,537 +143,251 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   onAnnotationClick,
   onBackToLibrary,
 }) => {
-  const [pdfDoc, setPdfDoc] = React.useState<PDFDocumentProxy | null>(null);
-  const [pageCount, setPageCount] = React.useState(0);
-  const [internalPage, setInternalPage] = React.useState(1);
-  const [zoomMode, setZoomMode] = React.useState<ZoomMode>("fit-width");
-  const [customZoom, setCustomZoom] = React.useState(1.0);
+  // DOM
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const viewerDivRef = React.useRef<HTMLDivElement>(null);
+
+  // PDF.js instances (not in state — mutations don't need re-renders)
+  const pdfViewerRef = React.useRef<any>(null);
+  const pdfDocRef = React.useRef<PDFDocumentProxy | null>(null);
+
+  // Panel collapse handles
+  const thumbPanelRef = usePanelRef();
+  const backlinksPanelRef = usePanelRef();
+
+  // Keep onPageChange stable in a ref so the eventbus closure never goes stale
+  const onPageChangeRef = React.useRef(onPageChange);
+  React.useEffect(() => { onPageChangeRef.current = onPageChange; }, [onPageChange]);
+
+  // ── Loading state ──
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [timedOut, setTimedOut] = React.useState(false);
+
+  // ── PDF state ──
+  const [pdfDoc, setPdfDoc] = React.useState<PDFDocumentProxy | null>(null); // for ThumbnailList
+  const [pageCount, setPageCount] = React.useState(0);
+  const [internalPage, setInternalPage] = React.useState(1);
+  const [displayScale, setDisplayScale] = React.useState(1.0);
+
+  // ── Zoom ──
+  const [zoomMode, setZoomMode] = React.useState<ZoomMode>("fit-width");
+  const [customZoom, setCustomZoom] = React.useState(1.0);
   const [goToPageInput, setGoToPageInput] = React.useState("");
-  const [containerSize, setContainerSize] = React.useState({ width: 800, height: 600 });
-  const [dpr, setDpr] = React.useState(() => window.devicePixelRatio ?? 1.0);
 
-  // New state for scroll-based rendering
-  const [pageSize, setPageSize] = React.useState<{ width: number; height: number } | null>(null);
-  const [visiblePages, setVisiblePages] = React.useState<Set<number>>(new Set());
+  // ── Overlay portals: page number → { div, viewport } ──
+  const [renderedPages, setRenderedPages] = React.useState<Map<number, RenderedPageInfo>>(new Map());
 
-  // OCR state
+  // ── OCR ──
   const [isScanned, setIsScanned] = React.useState(false);
-  const [ocrLines, setOcrLines] = React.useState<Map<number, any[]>>(new Map());
+  const [ocrLines, setOcrLines] = React.useState<Map<number, OcrLine[]>>(new Map());
+  const processedOcrPages = React.useRef<Set<number>>(new Set());
 
-  // Anchor & backlinks state
+  // ── Anchors & selection ──
+  const [anchors, setAnchors] = React.useState<Anchor[]>([]);
   const [selectionMode, setSelectionMode] = React.useState(false);
   const [pendingSelection, setPendingSelection] = React.useState<SelectionRect | null>(null);
   const [pendingPage, setPendingPage] = React.useState(1);
   const [anchorModalOpen, setAnchorModalOpen] = React.useState(false);
-  const [anchors, setAnchors] = React.useState<Anchor[]>([]);
-  const [showBacklinks, setShowBacklinks] = React.useState(false);
-  const [showThumbnails, setShowThumbnails] = React.useState(false);
-  const [showAnchors, setShowAnchors] = React.useState(true);
   const [linkModalOpen, setLinkModalOpen] = React.useState(false);
   const [createdAnchorId, setCreatedAnchorId] = React.useState<string | null>(null);
   const [selectedAnchor, setSelectedAnchor] = React.useState<Anchor | null>(null);
   const [selectedAnchorPos, setSelectedAnchorPos] = React.useState<{ x: number; y: number } | null>(null);
-  const [ankiModalOpen, setAnkiModalOpen] = React.useState(false);
-  const [ankiContext, setAnkiContext] = React.useState<AnkiCardCreationContext | null>(null);
 
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  const thumbPanelRef = usePanelRef();
-  const backlinksPanelRef = usePanelRef();
-  const canvasRefs = React.useRef<Map<number, HTMLCanvasElement>>(new Map());
-  const activeRenderTasks = React.useRef<Map<number, RenderTask>>(new Map());
-  const loadTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const renderingPages = React.useRef<Set<number>>(new Set());
-  const internalPageRef = React.useRef(internalPage);
-  const processedOcrPages = React.useRef<Set<number>>(new Set());
+  // ── UI panels ──
+  const [showBacklinks, setShowBacklinks] = React.useState(false);
+  const [showThumbnails, setShowThumbnails] = React.useState(false);
+  const [showAnchors, setShowAnchors] = React.useState(true);
+
+  // ── Anki ──
+  const [ankiModalOpen, setAnkiModalOpen] = React.useState(false);
+  const [ankiContext, setAnkiContext] = React.useState<AnkiCardCreationContext | undefined>(undefined);
 
   const currentPage = externalPage ?? internalPage;
 
-  // Load anchors for the current page
+  // ── Initialize PDFViewer once (runs after first render, DOM is ready) ──────
   React.useEffect(() => {
-    if (pdfId === null) {
-      setAnchors([]);
-      return;
-    }
-    invoke<Anchor[]>("list_anchors", { pdf_id: pdfId, page: currentPage })
-      .then(setAnchors)
-      .catch(() => setAnchors([]));
-  }, [pdfId, currentPage]);
+    const container = containerRef.current;
+    const viewerDiv = viewerDivRef.current;
+    if (!container || !viewerDiv) return;
 
-  // Observe container size
-  React.useEffect(() => {
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) {
-        setContainerSize({
-          width: entry.contentRect.width,
-          height: entry.contentRect.height,
-        });
-      }
+    const eventBus = new EventBus();
+    const linkService = new PDFLinkService({ eventBus });
+
+    const viewer = new PDFViewer({
+      container,
+      viewer: viewerDiv,
+      eventBus,
+      linkService,
+      textLayerMode: 1,       // ENABLE: PDF.js renders native text layer
+      removePageBorders: false,
     });
-    if (containerRef.current) observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
 
-  // Track device pixel ratio changes (e.g. moving window between Retina and non-Retina displays)
-  React.useEffect(() => {
-    const updateDpr = () => setDpr(window.devicePixelRatio ?? 1.0);
-    const mql = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-    mql.addEventListener("change", updateDpr);
-    return () => mql.removeEventListener("change", updateDpr);
-  }, [dpr]); // re-subscribe when dpr changes so the media query stays in sync
+    linkService.setViewer(viewer);
+    pdfViewerRef.current = viewer;
 
-  // Load PDF
+    // Record each rendered page so we can portal our overlays into it
+    eventBus.on("pagerendered", ({ pageNumber, source }: any) => {
+      const vp = source.viewport;
+      const pdfViewport: PdfViewport = {
+        width: vp.width,
+        height: vp.height,
+        scale: vp.scale,
+        pdfWidth: Math.round(vp.width / vp.scale),
+        pdfHeight: Math.round(vp.height / vp.scale),
+      };
+      setRenderedPages((prev) => new Map(prev).set(pageNumber, { div: source.div, viewport: pdfViewport }));
+    });
+
+    // Current page tracking (scrolling through the document)
+    eventBus.on("pagechanging", ({ pageNumber }: any) => {
+      setInternalPage(pageNumber);
+      onPageChangeRef.current?.(pageNumber);
+    });
+
+    // Keep displayScale in sync (for toolbar %)
+    eventBus.on("scalechanging", ({ scale }: any) => {
+      setDisplayScale(scale);
+    });
+
+    return () => {
+      viewer.cleanup?.();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps — intentionally once
+
+  // ── Load PDF when path changes ─────────────────────────────────────────────
   React.useEffect(() => {
     if (!pdfPath) {
+      pdfDocRef.current?.destroy();
+      pdfDocRef.current = null;
       setPdfDoc(null);
       setPageCount(0);
+      setInternalPage(1);
+      setRenderedPages(new Map());
       setError(null);
-      setTimedOut(false);
       return;
     }
 
     let cancelled = false;
     setIsLoading(true);
     setError(null);
-    setTimedOut(false);
-
-    loadTimeoutRef.current = setTimeout(() => {
-      if (!cancelled) {
-        setTimedOut(true);
-        setIsLoading(false);
-      }
-    }, LOAD_TIMEOUT_MS);
+    setRenderedPages(new Map());
+    setIsScanned(false);
+    setOcrLines(new Map());
+    processedOcrPages.current = new Set();
 
     const load = async () => {
       try {
-        let pdfSource: string | { data: Uint8Array };
-
+        let src: string | { data: Uint8Array };
         if (pdfPath.startsWith("http://") || pdfPath.startsWith("https://")) {
-          pdfSource = pdfPath;
-          console.log("Loading PDF from URL:", pdfPath);
+          src = pdfPath;
         } else {
-          console.log("Loading PDF from filesystem:", pdfPath);
           const bytes = await invoke<number[]>("get_pdf_bytes", { path: pdfPath });
-          pdfSource = { data: new Uint8Array(bytes) };
-          console.log("PDF bytes loaded:", bytes.length, "bytes");
+          if (cancelled) return;
+          src = { data: new Uint8Array(bytes) };
         }
 
-        const loadingTask = pdfjs.getDocument(pdfSource);
-        const doc = await loadingTask.promise;
-        if (cancelled) {
-          doc.destroy();
-          return;
-        }
+        const doc = await pdfjs.getDocument(src).promise;
+        if (cancelled) { doc.destroy(); return; }
 
-        clearTimeout(loadTimeoutRef.current!);
-        console.log("PDF loaded successfully:", { numPages: doc.numPages });
+        pdfDocRef.current?.destroy();
+        pdfDocRef.current = doc;
         setPdfDoc(doc);
         setPageCount(doc.numPages);
         setInternalPage(1);
 
-        // Get dimensions of page 1 for placeholder sizing
-        try {
-          const page1 = await doc.getPage(1);
-          const vp = page1.getViewport({ scale: 1 });
-          console.log("Page 1 dimensions:", { width: vp.width, height: vp.height });
-          setPageSize({ width: vp.width, height: vp.height });
-          page1.cleanup();
-        } catch (err) {
-          console.error("Error getting page 1 dimensions:", err);
+        const v = pdfViewerRef.current;
+        if (v) {
+          v.setDocument(doc);
+          v.linkService?.setDocument(doc);
         }
 
-        // Detect if PDF is scanned (background task)
-        if (pdfPath && !pdfPath.startsWith("http")) {
-          invoke<{ is_scanned: boolean; avg_chars_per_page: number }>("detect_scan_type_cmd", {
-            path: pdfPath,
-          })
-            .then((result) => {
-              console.log("Scan detection:", result);
-              setIsScanned(result.is_scanned);
-            })
-            .catch((err) => {
-              console.error("Error detecting scan type:", err);
-              setIsScanned(false);
-            });
+        // Detect scanned PDF (background, non-blocking)
+        if (!pdfPath.startsWith("http")) {
+          invoke<{ is_scanned: boolean }>("detect_scan_type_cmd", { path: pdfPath })
+            .then((r) => { if (!cancelled) setIsScanned(r.is_scanned); })
+            .catch(() => {});
         }
       } catch (err) {
-        if (!cancelled) {
-          clearTimeout(loadTimeoutRef.current!);
-          const errorMsg = (err as any)?.message ?? String(err);
-          const errorName = (err as any)?.name ?? "Error";
-          console.error("PDF loading error:", { name: errorName, message: errorMsg, error: err });
-          setError(`[${errorName}] ${errorMsg}`);
-        }
+        if (!cancelled) setError((err as any)?.message ?? String(err));
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     };
 
     load();
-    return () => {
-      cancelled = true;
-      clearTimeout(loadTimeoutRef.current!);
-    };
+    return () => { cancelled = true; };
   }, [pdfPath]);
 
-  // Calculate CSS scale (CSS pixels per PDF point, no DPI multiplier)
-  const cssScale = React.useMemo(() => {
-    if (!pageSize) return 1.0;
-
-    switch (zoomMode) {
-      case "fit-page": {
-        if (containerSize.height === 0) return 1.0;
-        const scaleX = containerSize.width / pageSize.width;
-        const scaleY = containerSize.height / pageSize.height;
-        return Math.min(scaleX, scaleY);
-      }
-      case "fit-width":
-        return containerSize.width / pageSize.width;
-      case "custom":
-        return customZoom;
-    }
-  }, [zoomMode, customZoom, containerSize, pageSize]);
-
-  // Build a PdfViewport for child components
-  const viewport: PdfViewport | null = React.useMemo(() => {
-    if (!pageSize) return null;
-    return buildPdfViewport(cssScale, pageSize.width, pageSize.height);
-  }, [cssScale, pageSize]);
-
-  // Refs for wheel handler — avoid re-attaching on every zoom change
-  const zoomModeRef = React.useRef(zoomMode);
-  const cssScaleRef = React.useRef(cssScale);
-  const renderPageRef = React.useRef<(pageNum: number) => Promise<void>>(async () => {});
-  React.useEffect(() => { zoomModeRef.current = zoomMode; }, [zoomMode]);
-  React.useEffect(() => { cssScaleRef.current = cssScale; }, [cssScale]);
-  React.useEffect(() => { internalPageRef.current = internalPage; }, [internalPage]);
-
-  // Trackpad/wheel zoom (pinch-to-zoom on macOS via ctrlKey)
-  // Attached once to avoid the re-attach lag at every zoom step
+  // ── Load anchors for current page ─────────────────────────────────────────
   React.useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    if (!pdfId) { setAnchors([]); return; }
+    invoke<Anchor[]>("list_anchors", { pdf_id: pdfId, page: currentPage })
+      .then(setAnchors)
+      .catch(() => setAnchors([]));
+  }, [pdfId, currentPage]);
 
-    const handleWheel = (e: WheelEvent) => {
-      // Only intercept pinch-to-zoom (ctrlKey) or explicit ctrl+scroll
-      if (!e.ctrlKey) return;
-
-      e.preventDefault();
-
-      const sensitivity = 0.005;
-      const delta = -e.deltaY * sensitivity;
-
-      setCustomZoom((prev) => {
-        const base = zoomModeRef.current === "custom" ? prev : cssScaleRef.current;
-        return Math.min(3, Math.max(0.5, base + delta));
-      });
-      setZoomMode("custom");
-    };
-
-    // Must use { passive: false } to allow preventDefault()
-    el.addEventListener("wheel", handleWheel, { passive: false });
-    return () => el.removeEventListener("wheel", handleWheel);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // attach once, reads fresh values via refs
-
-  // Render a page to canvas
-  const renderPage = React.useCallback(
-    async (pageNum: number) => {
-      console.log(`[renderPage ${pageNum}] Starting`, { pdfDoc: !!pdfDoc, cssScale, dpr, alreadyRendering: renderingPages.current.has(pageNum) });
-
-      if (!pdfDoc) {
-        console.log(`[renderPage ${pageNum}] No pdfDoc`);
-        return;
-      }
-
-      // Skip if already rendering this page
-      if (renderingPages.current.has(pageNum)) {
-        console.log(`[renderPage ${pageNum}] Already rendering, skipping`);
-        return;
-      }
-
-      const canvas = canvasRefs.current.get(pageNum);
-      if (!canvas) {
-        console.log(`[renderPage ${pageNum}] No canvas ref`);
-        return;
-      }
-
-      console.log(`[renderPage ${pageNum}] Canvas found, rendering...`);
-
-      // Cancel existing render task
-      const existing = activeRenderTasks.current.get(pageNum);
-      if (existing) {
-        console.log(`[renderPage ${pageNum}] Cancelling previous render`);
-        existing.cancel();
-        activeRenderTasks.current.delete(pageNum);
-      }
-
-      renderingPages.current.add(pageNum);
-
-      try {
-        const page = await pdfDoc.getPage(pageNum);
-        const vp = page.getViewport({ scale: cssScale });
-
-        // Physical canvas dimensions: CSS size * devicePixelRatio for sharp rendering
-        canvas.width = Math.round(vp.width * dpr);
-        canvas.height = Math.round(vp.height * dpr);
-        // CSS size matches the viewport exactly
-        canvas.style.width = vp.width + "px";
-        canvas.style.height = vp.height + "px";
-
-        console.log(`[renderPage ${pageNum}] Canvas size set to`, {
-          physical: { w: canvas.width, h: canvas.height },
-          css: { w: canvas.style.width, h: canvas.style.height },
-          viewport: { w: vp.width, h: vp.height },
-          dpr,
-          display: canvas.style.display,
-          position: canvas.style.position,
-        });
-
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          console.log(`[renderPage ${pageNum}] Could not get canvas context`);
-          renderingPages.current.delete(pageNum);
-          return;
-        }
-
-        // Scale context so pdf.js draws at physical resolution
-        ctx.scale(dpr, dpr);
-
-        const renderTask = page.render({ canvasContext: ctx, viewport: vp });
-        activeRenderTasks.current.set(pageNum, renderTask);
-
-        await renderTask.promise;
-        activeRenderTasks.current.delete(pageNum);
-        page.cleanup();
-        console.log(`[renderPage ${pageNum}] Render complete`);
-      } catch (err) {
-        if (err instanceof Error && err.name !== "RenderingCancelledException") {
-          console.error(`Error rendering page ${pageNum}:`, err);
-        }
-      } finally {
-        renderingPages.current.delete(pageNum);
-      }
-    },
-    [pdfDoc, cssScale, dpr]
-  );
-
-  // Keep ref in sync with renderPage callback
-  React.useEffect(() => {
-    renderPageRef.current = renderPage;
-  }, [renderPage]);
-
-  // IntersectionObserver for rendering visible pages
-  React.useEffect(() => {
-    if (!pdfDoc || !pageSize || !containerRef.current) {
-      console.log("[IntersectionObserver setup] Skipped:", { pdfDoc: !!pdfDoc, pageSize: !!pageSize, container: !!containerRef.current });
-      return;
-    }
-
-    const elements = containerRef.current.querySelectorAll("[data-page]");
-    console.log("[IntersectionObserver setup] Found", elements.length, "elements to observe");
-
-    let pendingUpdate: ReturnType<typeof setTimeout> | null = null;
-    const pendingEntries: IntersectionObserverEntry[] = [];
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        console.log("[IntersectionObserver callback] Entries:", entries.map(e => ({ page: e.target.getAttribute("data-page"), intersecting: e.isIntersecting })));
-
-        // Accumulate entries and debounce the state update
-        entries.forEach(e => {
-          const idx = pendingEntries.findIndex(pe => pe.target === e.target);
-          if (idx >= 0) {
-            pendingEntries[idx] = e;
-          } else {
-            pendingEntries.push(e);
-          }
-        });
-
-        if (pendingUpdate) clearTimeout(pendingUpdate);
-
-        pendingUpdate = setTimeout(() => {
-          setVisiblePages((prev) => {
-            const next = new Set(prev);
-            pendingEntries.forEach((e) => {
-              const num = parseInt(e.target.getAttribute("data-page") ?? "0");
-              if (e.isIntersecting) {
-                next.add(num);
-              } else {
-                next.delete(num);
-              }
-            });
-            console.log("[IntersectionObserver] Updated visiblePages:", Array.from(next).sort((a,b) => a-b));
-            pendingEntries.length = 0;
-            return next;
-          });
-          pendingUpdate = null;
-        }, 100);
-      },
-      {
-        root: containerRef.current,
-        rootMargin: "300px 0px",
-      }
-    );
-
-    elements.forEach((el) => {
-      observer.observe(el);
-    });
-
-    return () => {
-      observer.disconnect();
-      if (pendingUpdate) clearTimeout(pendingUpdate);
-    };
-  }, [pdfDoc, pageSize]);
-
-  // Render visible pages (initial render + visibility changes)
-  React.useEffect(() => {
-    console.log("[renderPage effect] Rendering pages:", Array.from(visiblePages).sort((a,b) => a-b));
-    visiblePages.forEach((pageNum) => {
-      renderPageRef.current(pageNum);
-    });
-  }, [visiblePages]);
-
-  // Reset OCR tracking when PDF changes
-  React.useEffect(() => {
-    processedOcrPages.current = new Set();
-  }, [pdfId]);
-
-  // Auto-OCR for visible scanned pages
+  // ── OCR: trigger for each newly rendered page (scanned PDFs only) ──────────
   React.useEffect(() => {
     if (!isScanned || !pdfId) return;
-
-    visiblePages.forEach((pageNum) => {
-      // Skip if already processed
+    renderedPages.forEach((_, pageNum) => {
       if (processedOcrPages.current.has(pageNum)) return;
-
       processedOcrPages.current.add(pageNum);
-      console.log(`[OCR effect] Triggering OCR for page ${pageNum}`);
-
-      invoke<{ text: string; confidence: number; source: string; lines: any[] }>("ocr_page_cmd", {
-        pdf_id: pdfId,
-        page: pageNum,
-      })
-        .then((result) => {
-          console.log(`[OCR effect] OCR complete for page ${pageNum}:`, result.lines.length, "lines");
-          setOcrLines((prev) => new Map(prev).set(pageNum, result.lines));
-        })
-        .catch((err) => {
-          console.error(`[OCR effect] OCR failed for page ${pageNum}:`, err);
-          processedOcrPages.current.delete(pageNum); // allow retry on error
-        });
+      invoke<{ lines: OcrLine[] }>("ocr_page_cmd", { pdf_id: pdfId, page: pageNum })
+        .then((r) => setOcrLines((prev) => new Map(prev).set(pageNum, r.lines)))
+        .catch(() => processedOcrPages.current.delete(pageNum));
     });
-  }, [isScanned, pdfId, visiblePages]);
+  }, [isScanned, pdfId, renderedPages]);
 
-  // IntersectionObserver for tracking current page (topmost visible)
-  React.useEffect(() => {
-    if (!pdfDoc || !containerRef.current) return;
-
-    const topObserver = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .map((e) => parseInt(e.target.getAttribute("data-page") ?? "0"))
-          .filter(Boolean)
-          .sort((a, b) => a - b);
-
-        if (visible.length > 0 && visible[0] !== internalPageRef.current) {
-          setInternalPage(visible[0]);
-          onPageChange?.(visible[0]);
-        }
-      },
-      {
-        root: containerRef.current,
-        threshold: 0.3,
-      }
-    );
-
-    containerRef.current?.querySelectorAll("[data-page]").forEach((el) => {
-      topObserver.observe(el);
-    });
-
-    return () => topObserver.disconnect();
-  }, [pdfDoc, pageCount, onPageChange]);
-
-  // Re-render all visible pages on scale/dpr change (zoom)
-  React.useEffect(() => {
-    visiblePages.forEach((pageNum) => {
-      renderPageRef.current(pageNum);
-    });
-  }, [cssScale, dpr]);
-
+  // ── Navigation ────────────────────────────────────────────────────────────
   const navigateTo = React.useCallback(
     (page: number) => {
       const clamped = Math.max(1, Math.min(pageCount, page));
-      // TEMP: Comment scrollIntoView to debug auto-scroll issue
-      // const el = document.getElementById(`pdf-page-${clamped}`);
-      // el?.scrollIntoView({ behavior: "smooth", block: "start" });
-      setInternalPage(clamped);
-      onPageChange?.(clamped);
+      if (pdfViewerRef.current) pdfViewerRef.current.currentPageNumber = clamped;
     },
-    [pageCount, onPageChange]
+    [pageCount]
   );
 
+  // ── Zoom ──────────────────────────────────────────────────────────────────
+  const applyScale = (mode: ZoomMode, value?: number) => {
+    const v = pdfViewerRef.current;
+    if (!v) return;
+    if (mode === "fit-width") v.currentScaleValue = "page-width";
+    else if (mode === "fit-page") v.currentScaleValue = "page-fit";
+    else v.currentScale = value ?? customZoom;
+  };
+
+  const handleFitWidth = () => { setZoomMode("fit-width"); applyScale("fit-width"); };
+  const handleFitPage  = () => { setZoomMode("fit-page");  applyScale("fit-page"); };
+
   const handleZoomIn = () => {
-    if (zoomMode === "custom") {
-      setCustomZoom((prev) => Math.min(3, prev + 0.1));
-    } else {
-      setZoomMode("custom");
-      setCustomZoom(Math.min(3, cssScale + 0.1));
-    }
+    const next = Math.min(3, (pdfViewerRef.current?.currentScale ?? displayScale) + 0.1);
+    setZoomMode("custom"); setCustomZoom(next); applyScale("custom", next);
   };
-
   const handleZoomOut = () => {
-    if (zoomMode === "custom") {
-      setCustomZoom((prev) => Math.max(0.5, prev - 0.1));
-    } else {
-      setZoomMode("custom");
-      setCustomZoom(Math.max(0.5, cssScale - 0.1));
-    }
+    const next = Math.max(0.25, (pdfViewerRef.current?.currentScale ?? displayScale) - 0.1);
+    setZoomMode("custom"); setCustomZoom(next); applyScale("custom", next);
   };
 
-  // Render errors
-  if (error || timedOut) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <div className="text-center text-muted-foreground">
-          <AlertCircle className="w-10 h-10 mx-auto mb-3 text-destructive" />
-          <p className="text-destructive font-medium">Failed to load PDF</p>
-          <p className="text-sm mt-1 max-w-xs">{error || "PDF took too long to load"}</p>
-        </div>
+  // ── Render ────────────────────────────────────────────────────────────────
+  if (error) return (
+    <div className="flex flex-1 items-center justify-center">
+      <div className="text-center">
+        <AlertCircle className="w-10 h-10 mx-auto mb-3 text-destructive" />
+        <p className="text-destructive font-medium">Failed to load PDF</p>
+        <p className="text-sm mt-1 max-w-xs text-muted-foreground">{error}</p>
       </div>
-    );
-  }
+    </div>
+  );
 
-  // Loading
-  if (isLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (!pdfDoc || pageCount === 0) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-muted-foreground">
-        No PDF loaded
-      </div>
-    );
-  }
-
-  // Main toolbar
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
+
       <PdfToolbar
         currentPage={currentPage}
         pageCount={pageCount}
         zoomMode={zoomMode}
         customZoom={customZoom}
-        displayZoom={cssScale}
+        displayZoom={displayScale}
         selectionMode={selectionMode}
         showBacklinks={showBacklinks}
         showThumbnails={showThumbnails}
@@ -601,49 +396,30 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         goToPageInput={goToPageInput}
         onPageInputChange={setGoToPageInput}
         onPageInputSubmit={() => {
-          const page = parseInt(goToPageInput);
-          if (!isNaN(page)) {
-            navigateTo(page);
-            setGoToPageInput("");
-          }
+          const p = parseInt(goToPageInput);
+          if (!isNaN(p)) { navigateTo(p); setGoToPageInput(""); }
         }}
         onPrev={() => navigateTo(currentPage - 1)}
         onNext={() => navigateTo(currentPage + 1)}
-        onFitPage={() => setZoomMode("fit-page")}
-        onFitWidth={() => setZoomMode("fit-width")}
+        onFitPage={handleFitPage}
+        onFitWidth={handleFitWidth}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
-        onToggleSelection={() => setSelectionMode(!selectionMode)}
-        onToggleAnchors={() => setShowAnchors(!showAnchors)}
-        onToggleBacklinks={() => {
-          const p = backlinksPanelRef.current;
-          if (!p) return;
-          if (p.isCollapsed()) { p.expand(); setShowBacklinks(true); }
-          else { p.collapse(); setShowBacklinks(false); }
-        }}
-        onToggleThumbnails={() => {
-          const p = thumbPanelRef.current;
-          if (!p) return;
-          if (p.isCollapsed()) { p.expand(); setShowThumbnails(true); }
-          else { p.collapse(); setShowThumbnails(false); }
-        }}
+        onToggleSelection={() => setSelectionMode((s) => !s)}
+        onToggleBacklinks={() => setShowBacklinks((s) => !s)}
+        onToggleThumbnails={() => setShowThumbnails((s) => !s)}
+        onToggleAnchors={() => setShowAnchors((s) => !s)}
         onBackToLibrary={onBackToLibrary}
-        hasSelectedAnchor={selectedAnchor !== null}
         onCreateAnkiCard={() => {
-          const context: AnkiCardCreationContext = selectedAnchor
-            ? {
-                sourceAnchorId: selectedAnchor.id,
-                sourceLabel: selectedAnchor.label,
-                prefillQuestion: selectedAnchor.text_snippet ?? undefined,
-              }
-            : {};
-          setAnkiContext(context);
+          setAnkiContext({});
           setAnkiModalOpen(true);
         }}
+        hasSelectedAnchor={selectedAnchor !== null}
       />
 
-      <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
-        {/* Thumbnail sidebar */}
+      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 overflow-hidden">
+
+        {/* ── Thumbnails ── */}
         <ResizablePanel
           panelRef={thumbPanelRef}
           collapsible
@@ -666,9 +442,18 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
 
         <ResizablePanelResizeHandle className="w-1 bg-border hover:bg-primary/30 transition-colors" />
 
-        {/* Main scroll container with all page placeholders */}
-        <ResizablePanel defaultSize={100} minSize={15}>
+        {/* ── Main PDF area ── */}
+        <ResizablePanel defaultSize={80} minSize={15}>
           <div className="relative h-full">
+
+            {/* Loading spinner (centered over the panel) */}
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center z-50 bg-background/60">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            )}
+
+            {/* Selection mode hint */}
             {selectionMode && (
               <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm font-medium shadow-lg pointer-events-none">
                 Dessinez un rectangle sur la page
@@ -680,63 +465,53 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
               <FloatingCommentPanel
                 anchor={selectedAnchor}
                 position={selectedAnchorPos || undefined}
-                onClose={() => {
-                  setSelectedAnchor(null);
-                  setSelectedAnchorPos(null);
-                }}
+                onClose={() => { setSelectedAnchor(null); setSelectedAnchorPos(null); }}
               />
             )}
 
+            {/* PDF.js scroll container — absolute inset-0 gives it a hard bounded height */}
             <div
               ref={containerRef}
-              className="h-full overflow-auto flex flex-col items-center gap-4 py-4 px-2 bg-muted/10"
+              className="absolute inset-0 overflow-auto"
+              style={{ backgroundColor: "#525659" }}
             >
-            {pageCount > 0 && viewport ? (
-              <>
-                {Array.from({ length: pageCount }, (_, i) => i + 1).map((pageNum) => (
-                    <PageView
-                      key={pageNum}
-                      pageNum={pageNum}
-                      viewport={viewport}
-                      isVisible={visiblePages.has(pageNum)}
-                      isCurrent={pageNum === currentPage}
-                      pdfDoc={pdfDoc}
-                      pdfId={pdfId}
-                      anchors={anchors}
-                      annotations={annotations}
-                      selectionMode={selectionMode}
-                      showAnchors={showAnchors}
-                      ocrLines={ocrLines.get(pageNum)}
-                      canvasRef={(el) => {
-                        if (el) canvasRefs.current.set(pageNum, el);
-                        else canvasRefs.current.delete(pageNum);
-                      }}
-                      onAnnotationClick={onAnnotationClick}
-                      onSelectionComplete={(rect, pageNum) => {
-                        setPendingSelection(rect);
-                        setPendingPage(pageNum);
-                        setAnchorModalOpen(true);
-                        setSelectionMode(false);
-                      }}
-                      onAnchorDoubleClick={(anchor, x, y) => {
-                        setSelectedAnchor(anchor);
-                        setSelectedAnchorPos({ x, y });
-                      }}
-                    />
-                ))}
-              </>
-            ) : (
-              <div className="text-center text-muted-foreground py-8">
-                Loading PDF...
-              </div>
-            )}
+              <div ref={viewerDivRef} className="pdfViewer" />
+
+              {/* Inject our React overlays into each PDF.js page div */}
+              {Array.from(renderedPages.entries()).map(([pageNum, { div, viewport }]) =>
+                ReactDOM.createPortal(
+                  <PageOverlay
+                    pageNum={pageNum}
+                    viewport={viewport}
+                    pdfId={pdfId}
+                    anchors={anchors.filter((a) => a.page_number === pageNum)}
+                    annotations={annotations.filter((a) => a.pageNumber === pageNum)}
+                    selectionMode={selectionMode}
+                    showAnchors={showAnchors}
+                    ocrLines={ocrLines.get(pageNum)}
+                    onSelectionComplete={(rect, page) => {
+                      setPendingSelection(rect);
+                      setPendingPage(page);
+                      setAnchorModalOpen(true);
+                      setSelectionMode(false);
+                    }}
+                    onAnchorDoubleClick={(anchor, x, y) => {
+                      setSelectedAnchor(anchor);
+                      setSelectedAnchorPos({ x, y });
+                    }}
+                    onAnnotationClick={onAnnotationClick}
+                  />,
+                  div
+                )
+              )}
             </div>
+
           </div>
         </ResizablePanel>
 
         <ResizablePanelResizeHandle className="w-1 bg-border hover:bg-primary/30 transition-colors" />
 
-        {/* Backlinks panel */}
+        {/* ── Backlinks ── */}
         <ResizablePanel
           panelRef={backlinksPanelRef}
           collapsible
@@ -745,11 +520,14 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
           minSize="5%"
           maxSize="50%"
         >
-          {pdfId !== null && <BacklinksPanel pdfId={pdfId} pageNumber={currentPage} />}
+          {pdfId !== null && (
+            <BacklinksPanel pdfId={pdfId} pageNumber={currentPage} />
+          )}
         </ResizablePanel>
+
       </ResizablePanelGroup>
 
-      {/* Modals */}
+      {/* ── Modals ── */}
       {pdfId !== null && (
         <>
           <AnchorCreationModal
@@ -758,40 +536,27 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
             pdfId={pdfId}
             page={pendingPage}
             selection={pendingSelection}
-            onAnchorCreated={(anchorId: string) => {
+            onAnchorCreated={(anchorId) => {
               setCreatedAnchorId(anchorId);
               setLinkModalOpen(true);
             }}
           />
-
           {createdAnchorId && (
             <LinkCreationModal
               open={linkModalOpen}
-              onClose={() => {
-                setLinkModalOpen(false);
-                setCreatedAnchorId(null);
-              }}
+              onClose={() => { setLinkModalOpen(false); setCreatedAnchorId(null); }}
               sourceAnchorId={createdAnchorId}
             />
           )}
         </>
       )}
 
-      {ankiModalOpen && (
-        <AnkiCardCreationModal
-          open={ankiModalOpen}
-          onClose={() => {
-            setAnkiModalOpen(false);
-            setAnkiContext(null);
-          }}
-          context={ankiContext ?? undefined}
-          onCardCreated={(card) => {
-            useAnkiStore.getState().addCard(card);
-            setAnkiModalOpen(false);
-            setAnkiContext(null);
-          }}
-        />
-      )}
+      <AnkiCardCreationModal
+        open={ankiModalOpen}
+        onClose={() => { setAnkiModalOpen(false); setAnkiContext(undefined); }}
+        context={ankiContext}
+      />
+
     </div>
   );
 };

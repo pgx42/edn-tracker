@@ -53,9 +53,9 @@ pub async fn import_pdf(
 
     // Validate doc_type if provided
     let validated_type = match &doc_type {
-        Some(t) if matches!(t.as_str(), "college" | "poly" | "lca" | "annale" | "other") => Some(t.clone()),
+        Some(t) if matches!(t.as_str(), "college" | "poly" | "lca" | "annale" | "lisa" | "other") => Some(t.clone()),
         None => None,
-        _ => return Err("Invalid doc_type. Must be one of: college, poly, lca, annale, other".to_string()),
+        _ => return Err("Invalid doc_type. Must be one of: college, poly, lca, annale, lisa, other".to_string()),
     };
 
     // Insert into database

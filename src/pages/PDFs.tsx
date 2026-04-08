@@ -17,6 +17,7 @@ const docTypeColors: Record<string, string> = {
   poly: "bg-purple-500/20 text-purple-400 border-purple-500/30",
   lca: "bg-green-500/20 text-green-400 border-green-500/30",
   annale: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  lisa: "bg-pink-500/20 text-pink-400 border-pink-500/30",
   other: "bg-gray-500/20 text-gray-400 border-gray-500/30",
 };
 
@@ -25,6 +26,7 @@ const docTypeLabels: Record<string, string> = {
   poly: "Polycopié",
   lca: "LCA",
   annale: "Annale",
+  lisa: "Fiche LISA",
   other: "Autre",
 };
 
@@ -137,6 +139,7 @@ export function PDFs() {
             <SelectItem value="poly">Polycopié</SelectItem>
             <SelectItem value="lca">LCA</SelectItem>
             <SelectItem value="annale">Annale</SelectItem>
+            <SelectItem value="lisa">Fiche LISA</SelectItem>
           </SelectContent>
         </Select>
       </div>

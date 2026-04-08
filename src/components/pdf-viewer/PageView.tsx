@@ -45,9 +45,6 @@ export const PageView: React.FC<PageViewProps> = ({
   onAnchorDoubleClick,
 }) => {
   const { width: cssWidth, height: cssHeight } = viewport;
-  React.useEffect(() => {
-    console.log(`[PageView ${pageNum}] Dimensions:`, { cssWidth, cssHeight, isVisible, viewport });
-  }, [pageNum, cssWidth, cssHeight, isVisible, viewport]);
 
   const [pdfPage, setPdfPage] = useState<PDFPageProxy | null>(null);
   const [_pageChars, setPageChars] = useState<PdfChar[]>([]);
@@ -74,19 +71,22 @@ export const PageView: React.FC<PageViewProps> = ({
       className={`relative shadow-md bg-white overflow-hidden ${isCurrent ? "ring-2 ring-primary ring-offset-2" : ""}`}
       style={{ width: cssWidth, height: cssHeight, position: "relative" }}
     >
+      {/* Canvas is always mounted so canvasRefs is always populated.
+          renderPage sets its dimensions; before rendering it is effectively 0×0. */}
+      <canvas
+        ref={canvasRef}
+        style={{
+          display: "block",
+          position: "absolute",
+          top: 0,
+          left: 0,
+          zIndex: 10,
+          pointerEvents: "none",
+        }}
+      />
+
       {isVisible ? (
         <>
-          <canvas
-            ref={canvasRef}
-            style={{
-              display: "block",
-              position: "absolute",
-              top: 0,
-              left: 0,
-              zIndex: 10,
-              pointerEvents: "none",
-            }}
-          />
           {pdfPage && (
             <UnifiedTextLayer
               mode={ocrLines && ocrLines.length > 0 ? 'ocr' : 'native'}
@@ -125,7 +125,7 @@ export const PageView: React.FC<PageViewProps> = ({
               onAnnotationClick={onAnnotationClick}
             />
           )}
-          {pdfId !== null && cssWidth > 0 && cssHeight > 0 && isVisible && (
+          {pdfId !== null && cssWidth > 0 && cssHeight > 0 && (
             <AnchorSelectionLayer
               active={selectionMode}
               pageWidth={cssWidth}

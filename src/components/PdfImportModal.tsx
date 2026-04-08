@@ -18,6 +18,7 @@ const DOC_TYPES = [
   { value: "poly", label: "Polycopié - Support pédagogique" },
   { value: "lca", label: "LCA - Lecture critique d'article" },
   { value: "annale", label: "Annale - Exam ou QCM" },
+  { value: "lisa", label: "Fiche LISA - Fiche de synthèse LISA" },
   { value: "other", label: "Autre - Non catégorisé" },
 ];
 
