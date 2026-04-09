@@ -34,6 +34,7 @@ pub async fn init_db(app: &AppHandle) -> Result<DbPool> {
         .with_context(|| format!("Failed to connect to SQLite at {db_url}"))?;
 
     run_schema(&pool).await?;
+    migrate_fts5(&pool).await?;
     verify_tables(&pool).await?;
 
     Ok(pool)
@@ -109,9 +110,11 @@ async fn run_schema(pool: &SqlitePool) -> Result<()> {
         )",
         "CREATE INDEX IF NOT EXISTS idx_pdf_pages_document ON pdf_pages(pdf_document_id)",
 
-        // FTS5 Virtual table for full-text search
+        // FTS5 Virtual table for full-text search (correct schema — see migrate_fts5)
+        // This statement is a no-op on existing DBs (IF NOT EXISTS); migrate_fts5 handles
+        // schema correction and trigger creation for both new and existing databases.
         "CREATE VIRTUAL TABLE IF NOT EXISTS pdf_pages_fts USING fts5(
-            page_id, pdf_id,
+            text_content,
             content='pdf_pages',
             content_rowid='rowid'
         )",
@@ -272,6 +275,10 @@ async fn run_schema(pool: &SqlitePool) -> Result<()> {
             duration_minutes INTEGER,
             item_ids TEXT,
             note TEXT,
+            completed INTEGER NOT NULL DEFAULT 0,
+            calendar_event_id TEXT,
+            item_id INTEGER,
+            specialty_id TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )",
         "CREATE INDEX IF NOT EXISTS idx_study_sessions_start ON study_sessions(start_time DESC)",
@@ -343,13 +350,157 @@ async fn run_schema(pool: &SqlitePool) -> Result<()> {
     .await
     .context("Failed to insert settings")?;
 
+    // item_specialties junction table (M2M items <-> specialties)
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS item_specialties (
+            item_id INTEGER NOT NULL,
+            specialty_id TEXT NOT NULL,
+            PRIMARY KEY (item_id, specialty_id),
+            FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+            FOREIGN KEY (specialty_id) REFERENCES specialties(id) ON DELETE CASCADE
+        )"
+    )
+    .execute(pool)
+    .await
+    .context("Failed to create item_specialties table")?;
+
+    // Migrate existing specialty_id data into the junction table (additive, safe to re-run)
+    sqlx::query(
+        "INSERT OR IGNORE INTO item_specialties (item_id, specialty_id)
+         SELECT id, specialty_id FROM items WHERE specialty_id IS NOT NULL"
+    )
+    .execute(pool)
+    .await
+    .context("Failed to migrate item_specialties")?;
+
     // Migrations: add columns that may not exist on older DB files
     // SQLite doesn't support "ADD COLUMN IF NOT EXISTS", so we ignore the error if the column exists
     let _ = sqlx::query("ALTER TABLE anki_notes ADD COLUMN anki_note_id INTEGER")
         .execute(pool)
         .await;
+    let _ = sqlx::query("ALTER TABLE study_sessions ADD COLUMN completed INTEGER NOT NULL DEFAULT 0")
+        .execute(pool)
+        .await;
+    let _ = sqlx::query("ALTER TABLE study_sessions ADD COLUMN calendar_event_id TEXT")
+        .execute(pool)
+        .await;
+    let _ = sqlx::query("ALTER TABLE study_sessions ADD COLUMN item_id INTEGER")
+        .execute(pool)
+        .await;
+    let _ = sqlx::query("ALTER TABLE study_sessions ADD COLUMN specialty_id TEXT")
+        .execute(pool)
+        .await;
 
     info!("Schema applied successfully");
+    Ok(())
+}
+
+/// One-time migration: rebuild the FTS5 index with the correct schema.
+///
+/// The original FTS5 had wrong columns (`page_id, pdf_id` — UUIDs) and no triggers,
+/// so the index was never populated. This migration:
+///   1. Drops and recreates the FTS5 table with the correct `text_content` column.
+///   2. Creates INSERT / UPDATE / DELETE triggers to keep the index in sync.
+///   3. Bulk-indexes all existing `pdf_pages` rows that already have text.
+///
+/// A flag `fts5_schema_v2` in `app_settings` prevents this from running twice.
+async fn migrate_fts5(pool: &SqlitePool) -> Result<()> {
+    // Check if migration was already applied
+    let done: Option<(String,)> =
+        sqlx::query_as("SELECT value FROM app_settings WHERE key = 'fts5_schema_v2'")
+            .fetch_optional(pool)
+            .await
+            .context("Failed to check fts5_schema_v2")?;
+
+    if done.is_some() {
+        return Ok(());
+    }
+
+    info!("Running FTS5 schema migration (v2)…");
+
+    // 1. Drop old FTS5 table and any leftover triggers from schema.sql
+    for stmt in &[
+        "DROP TABLE IF EXISTS pdf_pages_fts",
+        "DROP TRIGGER IF EXISTS pdf_pages_fts_insert",
+        "DROP TRIGGER IF EXISTS pdf_pages_fts_delete",
+        "DROP TRIGGER IF EXISTS pdf_pages_fts_update",
+    ] {
+        sqlx::query(stmt)
+            .execute(pool)
+            .await
+            .with_context(|| format!("FTS5 migration drop: {stmt}"))?;
+    }
+
+    // 2. Create FTS5 with the correct column
+    sqlx::query(
+        "CREATE VIRTUAL TABLE pdf_pages_fts USING fts5(
+            text_content,
+            content='pdf_pages',
+            content_rowid='rowid'
+        )",
+    )
+    .execute(pool)
+    .await
+    .context("Failed to create pdf_pages_fts")?;
+
+    // 3. Trigger: new page inserted (text may be NULL for pages not yet OCR'd)
+    sqlx::query(
+        "CREATE TRIGGER pdf_pages_fts_insert AFTER INSERT ON pdf_pages
+         WHEN new.text_content IS NOT NULL BEGIN
+           INSERT INTO pdf_pages_fts(rowid, text_content) VALUES (new.rowid, new.text_content);
+         END",
+    )
+    .execute(pool)
+    .await
+    .context("Failed to create fts_insert trigger")?;
+
+    // 4. Trigger: text updated (e.g., OCR completes and fills in text_content)
+    sqlx::query(
+        "CREATE TRIGGER pdf_pages_fts_update AFTER UPDATE OF text_content ON pdf_pages BEGIN
+           INSERT INTO pdf_pages_fts(pdf_pages_fts, rowid, text_content)
+             VALUES ('delete', old.rowid, old.text_content);
+           INSERT INTO pdf_pages_fts(rowid, text_content)
+             VALUES (new.rowid, new.text_content);
+         END",
+    )
+    .execute(pool)
+    .await
+    .context("Failed to create fts_update trigger")?;
+
+    // 5. Trigger: page deleted
+    sqlx::query(
+        "CREATE TRIGGER pdf_pages_fts_delete AFTER DELETE ON pdf_pages BEGIN
+           INSERT INTO pdf_pages_fts(pdf_pages_fts, rowid, text_content)
+             VALUES ('delete', old.rowid, old.text_content);
+         END",
+    )
+    .execute(pool)
+    .await
+    .context("Failed to create fts_delete trigger")?;
+
+    // 6. Bulk-index all existing pages that already have text
+    let indexed: sqlx::sqlite::SqliteQueryResult = sqlx::query(
+        "INSERT INTO pdf_pages_fts(rowid, text_content)
+         SELECT rowid, text_content FROM pdf_pages WHERE text_content IS NOT NULL",
+    )
+    .execute(pool)
+    .await
+    .context("Failed to bulk-index existing pdf_pages")?;
+
+    info!(
+        "FTS5 migration complete — {} pages indexed",
+        indexed.rows_affected()
+    );
+
+    // 7. Mark migration as done
+    sqlx::query(
+        "INSERT OR REPLACE INTO app_settings (key, value)
+         VALUES ('fts5_schema_v2', '1')",
+    )
+    .execute(pool)
+    .await
+    .context("Failed to set fts5_schema_v2 flag")?;
+
     Ok(())
 }
 

@@ -1,11 +1,20 @@
 pub mod ocr;
+pub mod search;
 pub mod items;
+pub mod catalog;
 pub mod pdf;
 pub mod links;
 pub mod errors;
 pub mod comments;
 pub mod diagrams;
 pub mod anki;
+pub mod anki_study;
+pub mod anki_edit;
+pub mod anki_stats;
+pub mod anki_manage;
+pub mod anki_media;
+pub mod planning;
+pub mod calendar;
 
 use serde::Serialize;
 use tauri::State;
