@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use tracing::debug;
 
 use super::anki::ankiconnect_invoke;
+use crate::scheduler::{self, CardSchedule, CardType, DeckConfig};
 
 // ─── Public structs ───────────────────────────────────────────────────────────
 
@@ -274,32 +275,77 @@ pub async fn anki_get_study_summary(deck_name: Option<String>) -> Result<StudySu
     Ok(summary)
 }
 
-/// Return projected next intervals (in seconds, negative) or days (positive) for a card.
-/// complete=true → returns [again, hard, good, easy] intervals
-/// complete=false → returns [current_interval]
+/// Return [again, hard, good, easy] projected intervals for a card.
+///
+/// Computed locally using our SM-2 scheduler so we always return exactly 4 values
+/// regardless of card type. (AnkiConnect's `getIntervals` returns only 2–3 values
+/// for new/learning cards which don't have a Hard button in Anki's native UI.)
+///
+/// Positive value = review interval in days.
+/// Negative value = learning delay in seconds (absolute value).
 #[tauri::command]
 pub async fn anki_get_card_intervals(card_id: i64) -> Result<Vec<i64>, String> {
+    // Fetch card info from AnkiConnect to build the current schedule
     #[derive(Serialize)]
-    struct Params {
-        cards: Vec<i64>,
-        complete: bool,
+    struct InfoParams { cards: Vec<i64> }
+
+    #[derive(Deserialize)]
+    struct RawCard {
+        #[serde(rename = "type")]
+        card_type: u8,
+        interval: i64,
+        factor: i64,
+        due: i64,
+        reps: i64,
+        lapses: i64,
     }
 
-    // complete=true returns array of arrays: [[again,hard,good,easy], ...]
-    // complete=false returns array of ints: [current_interval, ...]
-    let result: serde_json::Value = ankiconnect_invoke(
-        "getIntervals",
-        Params { cards: vec![card_id], complete: true },
+    let infos: Vec<RawCard> = ankiconnect_invoke(
+        "cardsInfo",
+        InfoParams { cards: vec![card_id] },
     )
     .await?;
 
-    // Result is [[again, hard, good, easy]] — we want the inner array for card_id
-    let intervals = result
-        .as_array()
-        .and_then(|arr| arr.first())
-        .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_i64()).collect::<Vec<_>>())
-        .unwrap_or_default();
+    let info = infos.into_iter().next()
+        .ok_or_else(|| format!("Card {card_id} not found"))?;
 
-    Ok(intervals)
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let today = scheduler::unix_day(now_secs);
+
+    // Convert to our CardSchedule
+    let card_type = CardType::try_from(info.card_type as i64).unwrap_or(CardType::New);
+    let interval = info.interval.max(0) as u32;
+
+    // Reconstruct due in our format:
+    //  - review cards: due was an Anki day ordinal; estimate from today
+    //  - learning: due is already a unix timestamp from Anki
+    let due = match card_type {
+        CardType::Review => today,   // compute relative to today for preview purposes
+        CardType::New => today,
+        _ => {
+            // learning/relearning: Anki due is a unix timestamp
+            if info.due > 0 { info.due } else { now_secs }
+        }
+    };
+
+    let card = CardSchedule {
+        card_type,
+        due,
+        interval,
+        ease_factor: info.factor as f32 / 1000.0,
+        remaining_steps: match card_type {
+            CardType::Learning | CardType::Relearning => 1,
+            _ => 0,
+        },
+        lapses: info.lapses as u32,
+        reps: info.reps as u32,
+        last_review_day: None,
+    };
+
+    let config = DeckConfig::default();
+    let intervals = scheduler::preview_intervals(&card, &config, now_secs, card_id);
+    Ok(intervals.to_vec())
 }
