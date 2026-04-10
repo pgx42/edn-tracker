@@ -37,11 +37,12 @@
       "icons/icon.ico"
     ],
     "macOS": {
-      "frameworks": [],
+      "frameworks": ["EventKit"],
       "exceptionDomain": "",
       "signingIdentity": null,
       "providerShortName": null,
       "entitlements": null,
+      "infoPlist": "Info.plist",
       "minimumSystemVersion": "10.15",
       "dmg": {}
     },

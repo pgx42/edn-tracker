@@ -13,6 +13,7 @@ pub mod anki_edit;
 pub mod anki_stats;
 pub mod anki_manage;
 pub mod anki_media;
+pub mod anki_local;
 pub mod planning;
 pub mod calendar;
 

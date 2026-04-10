@@ -1,6 +1,7 @@
 mod commands;
 mod db;
 mod ocr;
+mod scheduler;
 
 use tauri::Manager;
 use tracing::info;
@@ -101,6 +102,11 @@ pub fn run() {
             commands::anki_study::anki_get_card_intervals,
             commands::anki_media::anki_get_media_file,
             commands::anki_media::anki_get_media_dir,
+            commands::anki_local::anki_sync_to_local,
+            commands::anki_local::anki_get_due_local,
+            commands::anki_local::anki_answer_card_local,
+            commands::anki_local::anki_get_intervals_local,
+            commands::anki_local::anki_push_to_anki,
             commands::anki_manage::anki_suspend_notes,
             commands::anki_manage::anki_unsuspend_notes,
             commands::anki_manage::anki_is_card_suspended,

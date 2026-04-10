@@ -49,7 +49,7 @@ struct AnkiConnectResponse<T> {
 }
 
 /// Invoke an AnkiConnect action. Returns Err if the HTTP call fails or AnkiConnect returns an error.
-async fn ankiconnect_invoke<P: Serialize, T: serde::de::DeserializeOwned>(
+pub async fn ankiconnect_invoke<P: Serialize, T: serde::de::DeserializeOwned>(
     action: &'static str,
     params: P,
 ) -> Result<T, String> {
@@ -86,7 +86,7 @@ async fn ankiconnect_invoke<P: Serialize, T: serde::de::DeserializeOwned>(
 
 // ─── Private helpers ─────────────────────────────────────────────────────────
 
-async fn get_collection_path(pool: &SqlitePool) -> Option<String> {
+pub(crate) async fn get_collection_path(pool: &SqlitePool) -> Option<String> {
     let row: Option<(String,)> =
         sqlx::query_as("SELECT value FROM app_settings WHERE key = 'anki_collection_path'")
             .fetch_optional(pool)

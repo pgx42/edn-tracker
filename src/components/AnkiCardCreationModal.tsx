@@ -26,23 +26,48 @@ interface AnkiCardCreationModalProps {
   onDeckCreated?: (deck: AnkiDeck) => void;
 }
 
+const EMPTY_DECKS: AnkiDeck[] = [];
+
+const NOTE_TYPES = [
+  { id: "Basic", label: "Basique (Recto/Verso)" },
+  { id: "Basic (and reversed card)", label: "Basique + inversé" },
+  { id: "Cloze", label: "Texte à trous" },
+];
+
+/**
+ * Lightweight sanitizer for user-supplied HTML preview.
+ * Strips <script>, <style>, <iframe> tags and inline event handlers.
+ * Content comes exclusively from the user's own local input — this is a
+ * defense-in-depth measure, not a trust boundary.
+ */
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<iframe[\s\S]*?>/gi, "")
+    .replace(/\son\w+\s*=\s*["'][^"']*["']/gi, "")
+    .replace(/\son\w+\s*=\s*[^\s>]*/gi, "");
+}
+
 export function AnkiCardCreationModal({
   open,
   onClose,
   onCardCreated,
-  decks: propDecks = [],
+  decks: propDecks = EMPTY_DECKS,
   context,
   onDeckCreated,
 }: AnkiCardCreationModalProps) {
-  const { addCard } = useAnkiStore();
+  const { addCard, cards } = useAnkiStore();
 
   const [question, setQuestion] = React.useState("");
   const [answer, setAnswer] = React.useState("");
   const [extra, setExtra] = React.useState("");
   const [deckId, setDeckId] = React.useState("");
   const [tags, setTags] = React.useState("");
+  const [noteType, setNoteType] = React.useState("Basic");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [previewMode, setPreviewMode] = React.useState(false);
 
   const [decks, setDecks] = React.useState<AnkiDeck[]>(propDecks);
   const [isLoadingDecks, setIsLoadingDecks] = React.useState(false);
@@ -51,6 +76,23 @@ export function AnkiCardCreationModal({
   const [showNewDeck, setShowNewDeck] = React.useState(false);
   const [newDeckName, setNewDeckName] = React.useState("");
   const [isCreatingDeck, setIsCreatingDeck] = React.useState(false);
+
+  const formRef = React.useRef<HTMLFormElement>(null);
+
+  // Derived state
+  const isCloze = noteType === "Cloze";
+  const questionLabel = isCloze ? "Texte" : "Question";
+
+  // Collect existing tags from store
+  const existingTags = React.useMemo(() => {
+    const tagSet = new Set<string>();
+    for (const card of cards) {
+      (card.tags ?? "").split(/\s+/).filter(Boolean).forEach((t) => {
+        if (t !== "edn-tracker") tagSet.add(t);
+      });
+    }
+    return Array.from(tagSet).sort();
+  }, [cards]);
 
   // Sync propDecks changes
   React.useEffect(() => {
@@ -75,6 +117,8 @@ export function AnkiCardCreationModal({
       setAnswer(context?.prefillAnswer ?? "");
       setExtra("");
       setTags("");
+      setNoteType("Basic");
+      setPreviewMode(false);
       setError(null);
       setShowNewDeck(false);
       setNewDeckName("");
@@ -87,6 +131,18 @@ export function AnkiCardCreationModal({
       setDeckId(decks[0].id);
     }
   }, [decks, deckId]);
+
+  // Keyboard shortcuts: Cmd/Ctrl+Enter to submit
+  React.useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        formRef.current?.requestSubmit();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open]);
 
   const handleCreateDeck = async () => {
     if (!newDeckName.trim()) return;
@@ -105,9 +161,38 @@ export function AnkiCardCreationModal({
     }
   };
 
+  const handleClozeWrap = () => {
+    const textarea = document.getElementById("anki-question") as HTMLTextAreaElement | null;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = question.substring(start, end);
+    const clozeNum = (question.match(/\{\{c(\d+)::/g) ?? []).length + 1;
+    const prefix = `{{c${clozeNum}::`;
+    const newText =
+      question.substring(0, start) +
+      prefix +
+      selected +
+      "}}" +
+      question.substring(end);
+    setQuestion(newText);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const newCursor = start + prefix.length + selected.length + 2;
+      textarea.setSelectionRange(newCursor, newCursor);
+    });
+  };
+
+  const handleAddTag = (tag: string) => {
+    const current = tags.split(/\s+/).filter(Boolean);
+    if (!current.includes(tag)) {
+      setTags(current.concat(tag).join(" "));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!question.trim() || !answer.trim() || !deckId) return;
+    if (!question.trim() || (!isCloze && !answer.trim()) || !deckId) return;
     setIsSubmitting(true);
     setError(null);
     try {
@@ -119,6 +204,7 @@ export function AnkiCardCreationModal({
         tags: tags.trim() || null,
         source_anchor_id: context?.sourceAnchorId ?? null,
         source_pdf_ref: context?.sourcePdfTitle ?? null,
+        note_type: noteType,
       });
       addCard(card);
       onCardCreated?.(card);
@@ -129,6 +215,12 @@ export function AnkiCardCreationModal({
       setIsSubmitting(false);
     }
   };
+
+  const isSubmitDisabled =
+    !question.trim() ||
+    (!isCloze && !answer.trim()) ||
+    !deckId ||
+    isSubmitting;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -145,42 +237,115 @@ export function AnkiCardCreationModal({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+        {/* Edition / Preview toggle */}
+        <div className="flex gap-1 mt-2 border-b border-border pb-2">
+          <button
+            type="button"
+            onClick={() => setPreviewMode(false)}
+            className={`text-xs px-3 py-1 rounded transition-colors ${
+              !previewMode
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Édition
+          </button>
+          <button
+            type="button"
+            onClick={() => setPreviewMode(true)}
+            className={`text-xs px-3 py-1 rounded transition-colors ${
+              previewMode
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Aperçu
+          </button>
+        </div>
+
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4 mt-2">
+          {/* Question / Texte field */}
           <div className="space-y-1.5">
-            <Label htmlFor="anki-question">Question *</Label>
-            <Textarea
-              id="anki-question"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Question de la carte..."
-              rows={3}
-              required
-            />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="anki-question">{questionLabel} *</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className={`h-6 text-xs font-mono ${isCloze ? "text-primary border border-primary/40" : ""}`}
+                onClick={handleClozeWrap}
+                title="Entourer la sélection avec la syntaxe cloze"
+              >
+                {"{{"}<span>c1::</span>{"}}"}
+              </Button>
+            </div>
+            {previewMode ? (
+              <div
+                className="border rounded-md p-3 min-h-[80px] text-sm prose prose-invert max-w-none"
+                // Content is user-supplied local data (SQLite). Sanitized above.
+                // eslint-disable-next-line react/no-danger
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(question) }}
+              />
+            ) : (
+              <Textarea
+                id="anki-question"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder={
+                  isCloze
+                    ? "Texte avec {{c1::mots à cacher}}..."
+                    : "Question de la carte..."
+                }
+                rows={3}
+                required
+              />
+            )}
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="anki-answer">Réponse *</Label>
-            <Textarea
-              id="anki-answer"
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              placeholder="Réponse de la carte..."
-              rows={3}
-              required
-            />
-          </div>
+          {/* Answer field — hidden for Cloze */}
+          {!isCloze && (
+            <div className="space-y-1.5">
+              <Label htmlFor="anki-answer">Réponse *</Label>
+              {previewMode ? (
+                <div
+                  className="border rounded-md p-3 min-h-[80px] text-sm prose prose-invert max-w-none"
+                  // eslint-disable-next-line react/no-danger
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(answer) }}
+                />
+              ) : (
+                <Textarea
+                  id="anki-answer"
+                  value={answer}
+                  onChange={(e) => setAnswer(e.target.value)}
+                  placeholder="Réponse de la carte..."
+                  rows={3}
+                  required
+                />
+              )}
+            </div>
+          )}
 
+          {/* Extra field */}
           <div className="space-y-1.5">
             <Label htmlFor="anki-extra">Champ supplémentaire</Label>
-            <Textarea
-              id="anki-extra"
-              value={extra}
-              onChange={(e) => setExtra(e.target.value)}
-              placeholder="Informations complémentaires (optionnel)..."
-              rows={2}
-            />
+            {previewMode ? (
+              <div
+                className="border rounded-md p-3 min-h-[48px] text-sm prose prose-invert max-w-none text-muted-foreground"
+                // eslint-disable-next-line react/no-danger
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(extra) || "<em>Vide</em>" }}
+              />
+            ) : (
+              <Textarea
+                id="anki-extra"
+                value={extra}
+                onChange={(e) => setExtra(e.target.value)}
+                placeholder="Informations complémentaires (optionnel)..."
+                rows={2}
+              />
+            )}
           </div>
 
+          {/* Deck selector */}
           <div className="space-y-1.5">
             <Label>Paquet *</Label>
             {showNewDeck ? (
@@ -240,6 +405,24 @@ export function AnkiCardCreationModal({
             )}
           </div>
 
+          {/* Note type selector */}
+          <div className="space-y-1.5">
+            <Label>Type de carte</Label>
+            <Select value={noteType} onValueChange={setNoteType}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {NOTE_TYPES.map((nt) => (
+                  <SelectItem key={nt.id} value={nt.id}>
+                    {nt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Tags */}
           <div className="space-y-1.5">
             <Label htmlFor="anki-tags">Tags</Label>
             <Input
@@ -248,6 +431,20 @@ export function AnkiCardCreationModal({
               onChange={(e) => setTags(e.target.value)}
               placeholder="tag1 tag2 tag3 (séparés par des espaces)"
             />
+            {existingTags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {existingTags.slice(0, 15).map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    className="text-[11px] px-1.5 py-0.5 rounded border border-muted text-muted-foreground hover:border-primary hover:text-foreground transition-colors"
+                    onClick={() => handleAddTag(tag)}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {error && (
@@ -255,13 +452,13 @@ export function AnkiCardCreationModal({
           )}
 
           <DialogFooter>
+            <p className="text-xs text-muted-foreground mr-auto self-center hidden sm:block">
+              ⌘↵ pour soumettre
+            </p>
             <Button type="button" variant="outline" onClick={onClose}>
               Annuler
             </Button>
-            <Button
-              type="submit"
-              disabled={!question.trim() || !answer.trim() || !deckId || isSubmitting}
-            >
+            <Button type="submit" disabled={isSubmitDisabled}>
               {isSubmitting ? "Création..." : "Créer la carte"}
             </Button>
           </DialogFooter>

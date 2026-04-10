@@ -391,6 +391,42 @@ async fn run_schema(pool: &SqlitePool) -> Result<()> {
         .execute(pool)
         .await;
 
+    // Local Anki scheduler table (offline study)
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS anki_sched (
+            card_id INTEGER PRIMARY KEY,
+            note_id INTEGER NOT NULL,
+            deck_name TEXT NOT NULL,
+            deck_id TEXT NOT NULL DEFAULT '',
+            question TEXT NOT NULL,
+            answer TEXT NOT NULL,
+            card_type INTEGER NOT NULL DEFAULT 0,
+            due INTEGER NOT NULL DEFAULT 0,
+            interval_days INTEGER NOT NULL DEFAULT 0,
+            ease_factor INTEGER NOT NULL DEFAULT 2500,
+            reps INTEGER NOT NULL DEFAULT 0,
+            lapses INTEGER NOT NULL DEFAULT 0,
+            remaining_steps INTEGER NOT NULL DEFAULT 0,
+            last_review_day INTEGER,
+            needs_sync INTEGER NOT NULL DEFAULT 0,
+            pending_ease INTEGER,
+            last_synced_at INTEGER NOT NULL DEFAULT 0
+        )"
+    )
+    .execute(pool)
+    .await
+    .context("Failed to create anki_sched table")?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_anki_sched_deck ON anki_sched(deck_name)")
+        .execute(pool)
+        .await
+        .context("Failed to create idx_anki_sched_deck")?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_anki_sched_due ON anki_sched(card_type, due)")
+        .execute(pool)
+        .await
+        .context("Failed to create idx_anki_sched_due")?;
+
     info!("Schema applied successfully");
     Ok(())
 }

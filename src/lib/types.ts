@@ -64,20 +64,35 @@ export interface StudyGoal {
 }
 
 export interface StudySession {
-  id: number;
-  date: string;
-  duration: number; // minutes
+  id: string;              // UUID
+  title: string;
+  startTime: string;       // ISO datetime "2026-04-08T08:00:00"
+  endTime: string;         // ISO datetime
+  itemId: number | null;   // primary linked EDN item
+  specialtyId: string | null; // e.g. "cardio", "pneumo"
   itemIds: number[];
   notes: string | null;
   completed: boolean;
+  calendarEventId: string | null;  // Apple Calendar event identifier
+}
+
+export interface CreateSessionInput {
+  title: string;
+  startTime: string;
+  endTime: string;
+  itemId?: number;
+  specialtyId?: string;
+  itemIds?: number[];
+  notes?: string;
 }
 
 export interface AnkiDeck {
   id: string;
   name: string;
-  description: string | null;
-  created_at: string;
-  last_exported_at: string | null;
+  card_count: number;
+  description?: string | null;
+  created_at?: string;
+  last_exported_at?: string | null;
 }
 
 export interface AnkiNoteRecord {

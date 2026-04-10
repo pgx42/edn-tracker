@@ -151,11 +151,11 @@ export const mockGoals: StudyGoal[] = [
 ];
 
 export const mockSessions: StudySession[] = [
-  { id: 1, date: "2024-04-10", duration: 120, itemIds: [1, 2, 3], notes: "Revision HTA et IC avec fiches", completed: true },
-  { id: 2, date: "2024-04-12", duration: 90, itemIds: [6, 7, 8], notes: "BPCO et asthme, épreuves fonctionnelles respiratoires", completed: true },
-  { id: 3, date: "2024-04-15", duration: 60, itemIds: [16, 20], notes: "AVC et méningite, urgences neurologiques", completed: false },
-  { id: 4, date: "2024-04-17", duration: 120, itemIds: [21, 22, 23, 24], notes: "Tout le module endocrinologie diabète+thyroïde", completed: false },
-  { id: 5, date: "2024-04-20", duration: 90, itemIds: [40, 79], notes: "RCP et anaphylaxie: pratiques urgentistes", completed: false },
-  { id: 6, date: "2024-04-22", duration: 150, itemIds: [25, 26, 27, 64, 90], notes: "Rhumatologie, révision annale 2022", completed: false },
-  { id: 7, date: "2024-04-25", duration: 60, itemIds: [1, 3, 7, 12], notes: "Révision des erreurs critiques", completed: false },
+  { id: "mock-1", title: "Révision HTA et IC", startTime: "2026-04-10T08:00:00", endTime: "2026-04-10T10:00:00", itemId: 1, specialtyId: "cardio", itemIds: [1, 2, 3], notes: "Revision HTA et IC avec fiches", completed: true, calendarEventId: null },
+  { id: "mock-2", title: "BPCO et asthme", startTime: "2026-04-12T09:00:00", endTime: "2026-04-12T10:30:00", itemId: 6, specialtyId: "pneumo", itemIds: [6, 7, 8], notes: "Épreuves fonctionnelles respiratoires", completed: true, calendarEventId: null },
+  { id: "mock-3", title: "Urgences neurologiques", startTime: "2026-04-15T14:00:00", endTime: "2026-04-15T15:00:00", itemId: 16, specialtyId: "neuro", itemIds: [16, 20], notes: "AVC et méningite", completed: false, calendarEventId: null },
+  { id: "mock-4", title: "Endocrinologie", startTime: "2026-04-17T08:00:00", endTime: "2026-04-17T10:00:00", itemId: 21, specialtyId: "endo", itemIds: [21, 22, 23, 24], notes: "Diabète et thyroïde", completed: false, calendarEventId: null },
+  { id: "mock-5", title: "Urgences réanimatoires", startTime: "2026-04-20T10:00:00", endTime: "2026-04-20T11:30:00", itemId: null, specialtyId: null, itemIds: [40, 79], notes: "RCP et anaphylaxie", completed: false, calendarEventId: null },
+  { id: "mock-6", title: "Rhumatologie", startTime: "2026-04-22T09:00:00", endTime: "2026-04-22T11:30:00", itemId: 25, specialtyId: "rheum", itemIds: [25, 26, 27, 64, 90], notes: "Révision annale 2022", completed: false, calendarEventId: null },
+  { id: "mock-7", title: "Révision erreurs critiques", startTime: "2026-04-25T08:00:00", endTime: "2026-04-25T09:00:00", itemId: null, specialtyId: null, itemIds: [1, 3, 7, 12], notes: "Révision des erreurs critiques", completed: false, calendarEventId: null },
 ];
