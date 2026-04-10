@@ -16,6 +16,9 @@ pub struct Item {
     pub title: String,
     pub description: Option<String>,
     pub rank: String,
+    /// Comma-separated specialty IDs from the item_specialties junction table.
+    /// Falls back to specialty_id if junction table has no entries.
+    pub specialty_ids: Option<String>,
 }
 
 /// Get all specialties
@@ -27,7 +30,8 @@ pub async fn get_specialties(db: tauri::State<'_, DbPool>) -> Result<Vec<Special
         .map_err(|e| e.to_string())
 }
 
-/// Get all items or filter by specialty
+/// Get all items, with their specialty IDs from the junction table.
+/// Optionally filter by a single specialty_id.
 #[tauri::command]
 pub async fn get_items(
     specialty_id: Option<String>,
@@ -35,15 +39,28 @@ pub async fn get_items(
 ) -> Result<Vec<Item>, String> {
     if let Some(spec_id) = specialty_id {
         sqlx::query_as::<_, Item>(
-            "SELECT id, specialty_id, code, title, description, rank FROM items WHERE specialty_id = ? ORDER BY id",
+            "SELECT i.id, i.specialty_id, i.code, i.title, i.description, i.rank,
+                    GROUP_CONCAT(iss.specialty_id) as specialty_ids
+             FROM items i
+             LEFT JOIN item_specialties iss ON iss.item_id = i.id
+             WHERE i.id IN (SELECT item_id FROM item_specialties WHERE specialty_id = ?)
+                OR i.specialty_id = ?
+             GROUP BY i.id
+             ORDER BY i.id",
         )
-        .bind(spec_id)
+        .bind(&spec_id)
+        .bind(&spec_id)
         .fetch_all(db.inner())
         .await
         .map_err(|e| e.to_string())
     } else {
         sqlx::query_as::<_, Item>(
-            "SELECT id, specialty_id, code, title, description, rank FROM items ORDER BY id",
+            "SELECT i.id, i.specialty_id, i.code, i.title, i.description, i.rank,
+                    GROUP_CONCAT(iss.specialty_id) as specialty_ids
+             FROM items i
+             LEFT JOIN item_specialties iss ON iss.item_id = i.id
+             GROUP BY i.id
+             ORDER BY i.id",
         )
         .fetch_all(db.inner())
         .await
@@ -563,6 +580,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            specialty_ids: None,
         });
         item_id += 1;
     }
@@ -581,6 +599,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            specialty_ids: None,
         });
         item_id += 1;
     }
@@ -599,6 +618,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            specialty_ids: None,
         });
         item_id += 1;
     }
@@ -617,6 +637,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            specialty_ids: None,
         });
         item_id += 1;
     }
@@ -635,6 +656,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            specialty_ids: None,
         });
         item_id += 1;
     }
@@ -653,6 +675,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            specialty_ids: None,
         });
         item_id += 1;
     }
@@ -671,6 +694,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            specialty_ids: None,
         });
         item_id += 1;
     }
@@ -689,6 +713,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            specialty_ids: None,
         });
         item_id += 1;
     }
@@ -707,6 +732,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            specialty_ids: None,
         });
         item_id += 1;
     }
@@ -725,6 +751,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            specialty_ids: None,
         });
         item_id += 1;
     }
@@ -743,6 +770,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            specialty_ids: None,
         });
         item_id += 1;
     }
@@ -761,6 +789,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            specialty_ids: None,
         });
         item_id += 1;
     }
@@ -779,6 +808,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            specialty_ids: None,
         });
         item_id += 1;
     }

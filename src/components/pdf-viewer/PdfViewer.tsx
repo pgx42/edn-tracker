@@ -23,6 +23,7 @@ import { BacklinksPanel } from "@/components/BacklinksPanel";
 import { LinkCreationModal } from "@/components/LinkCreationModal";
 import { AnkiCardCreationModal } from "@/components/AnkiCardCreationModal";
 import { FloatingCommentPanel } from "./FloatingCommentPanel";
+import { PdfContextMenu } from "./PdfContextMenu";
 import { ThumbnailList } from "./PdfThumbnails";
 import { PdfToolbar, type ZoomMode } from "./PdfToolbar";
 import {
@@ -78,6 +79,7 @@ interface PageOverlayProps {
   onSelectionComplete: (rect: SelectionRect, page: number) => void;
   onAnchorDoubleClick?: (anchor: Anchor, x: number, y: number) => void;
   onAnnotationClick?: (annotation: Annotation) => void;
+  onContextMenu?: (normX: number, normY: number, clientX: number, clientY: number, page: number) => void;
 }
 
 const PageOverlay: React.FC<PageOverlayProps> = ({
@@ -92,45 +94,68 @@ const PageOverlay: React.FC<PageOverlayProps> = ({
   onSelectionComplete,
   onAnchorDoubleClick,
   onAnnotationClick,
-}) => (
-  <>
-    {ocrLines && ocrLines.length > 0 && (
-      <OcrTextLayer
-        lines={ocrLines}
-        pageWidth={viewport.width}
-        pageHeight={viewport.height}
-      />
-    )}
-    <AnnotationLayer
-      pageNumber={pageNum}
-      annotations={annotations}
-      onAnnotationClick={onAnnotationClick}
-      scale={1}
-      pageWidth={viewport.width}
-      pageHeight={viewport.height}
-    />
-    {pdfId !== null && showAnchors && (
-      <HighlightCanvas
-        anchors={anchors}
-        annotations={annotations}
+  onContextMenu,
+}) => {
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (!onContextMenu) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const normX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const normY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    onContextMenu(normX, normY, e.clientX, e.clientY, pageNum);
+  };
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: viewport.width,
+        height: viewport.height,
+        pointerEvents: selectionMode ? "none" : "auto",
+      }}
+      onContextMenu={handleContextMenu}
+    >
+      {ocrLines && ocrLines.length > 0 && (
+        <OcrTextLayer
+          lines={ocrLines}
+          pageWidth={viewport.width}
+          pageHeight={viewport.height}
+        />
+      )}
+      <AnnotationLayer
         pageNumber={pageNum}
-        viewport={viewport}
-        dpr={window.devicePixelRatio ?? 1}
-        showAnchors={showAnchors}
-        onAnchorDoubleClick={onAnchorDoubleClick}
+        annotations={annotations}
         onAnnotationClick={onAnnotationClick}
-      />
-    )}
-    {pdfId !== null && viewport.width > 0 && viewport.height > 0 && (
-      <AnchorSelectionLayer
-        active={selectionMode}
+        scale={1}
         pageWidth={viewport.width}
         pageHeight={viewport.height}
-        onSelectionComplete={(rect) => onSelectionComplete(rect, pageNum)}
       />
-    )}
-  </>
-);
+      {pdfId !== null && showAnchors && (
+        <HighlightCanvas
+          anchors={anchors}
+          annotations={annotations}
+          pageNumber={pageNum}
+          viewport={viewport}
+          dpr={window.devicePixelRatio ?? 1}
+          showAnchors={showAnchors}
+          onAnchorDoubleClick={onAnchorDoubleClick}
+          onAnnotationClick={onAnnotationClick}
+        />
+      )}
+      {pdfId !== null && viewport.width > 0 && viewport.height > 0 && (
+        <AnchorSelectionLayer
+          active={selectionMode}
+          pageWidth={viewport.width}
+          pageHeight={viewport.height}
+          onSelectionComplete={(rect) => onSelectionComplete(rect, pageNum)}
+        />
+      )}
+    </div>
+  );
+};
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
@@ -197,6 +222,15 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   const [showBacklinks, setShowBacklinks] = React.useState(false);
   const [showThumbnails, setShowThumbnails] = React.useState(false);
   const [showAnchors, setShowAnchors] = React.useState(true);
+
+  // ── Context menu (right-click on PDF) ──
+  const [contextMenu, setContextMenu] = React.useState<{
+    normX: number;
+    normY: number;
+    clientX: number;
+    clientY: number;
+    page: number;
+  } | null>(null);
 
   // ── Anki ──
   const [ankiModalOpen, setAnkiModalOpen] = React.useState(false);
@@ -338,6 +372,42 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     });
   }, [isScanned, pdfId, renderedPages]);
 
+  // ── Create a pin anchor from right-click ─────────────────────────────────
+  const handleAddCommentPin = React.useCallback(async () => {
+    if (!contextMenu || !pdfId) return;
+    try {
+      const id = await invoke<string>("create_anchor", {
+        pdfId,
+        page: contextMenu.page,
+        x: contextMenu.normX,
+        y: contextMenu.normY,
+        w: 0,
+        h: 0,
+        label: "",
+        textSnippet: null,
+      });
+      // Reload anchors for the page
+      const updated = await invoke<Anchor[]>("list_anchors", { pdf_id: pdfId, page: contextMenu.page });
+      setAnchors(updated);
+      // Open comment panel — position near the click (fixed coords relative to viewport)
+      const newAnchor = updated.find((a) => a.id === id);
+      if (newAnchor) {
+        setSelectedAnchor(newAnchor);
+        // Convert fixed client coords to absolute coords within the scroll container
+        const container = containerRef.current;
+        if (container) {
+          const cr = container.getBoundingClientRect();
+          setSelectedAnchorPos({
+            x: contextMenu.clientX - cr.left + container.scrollLeft,
+            y: contextMenu.clientY - cr.top + container.scrollTop,
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to create anchor pin:", err);
+    }
+  }, [contextMenu, pdfId]);
+
   // ── Navigation ────────────────────────────────────────────────────────────
   const navigateTo = React.useCallback(
     (page: number) => {
@@ -469,6 +539,16 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
               />
             )}
 
+            {/* PDF context menu */}
+            {contextMenu && pdfId && (
+              <PdfContextMenu
+                x={contextMenu.clientX}
+                y={contextMenu.clientY}
+                onAddComment={handleAddCommentPin}
+                onClose={() => setContextMenu(null)}
+              />
+            )}
+
             {/* PDF.js scroll container — absolute inset-0 gives it a hard bounded height */}
             <div
               ref={containerRef}
@@ -500,6 +580,9 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                       setSelectedAnchorPos({ x, y });
                     }}
                     onAnnotationClick={onAnnotationClick}
+                    onContextMenu={(normX, normY, clientX, clientY, page) => {
+                      if (pdfId) setContextMenu({ normX, normY, clientX, clientY, page });
+                    }}
                   />,
                   div
                 )

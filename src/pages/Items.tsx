@@ -1,20 +1,15 @@
 import * as React from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Search, Filter, SortAsc, Loader2, AlertCircle } from "lucide-react";
+import { Search, Filter, Loader2, AlertCircle, Plus, Pencil, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ItemDetailModal } from "@/components/ItemDetailModal";
+import { ItemFormModal } from "@/components/ItemFormModal";
 import type { EdnItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const rankColors: Record<string, string> = {
-  A: "bg-red-500/20 text-red-400 border-red-500/30",
-  B: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  C: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-};
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   not_started: { label: "Non commencé", color: "text-muted-foreground" },
@@ -22,38 +17,69 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   mastered: { label: "Maîtrisé", color: "text-green-400" },
 };
 
+interface Specialty {
+  id: string;
+  name: string;
+}
+
+interface ItemRow {
+  id: number;
+  specialty_id: string;
+  specialty_ids: string | null;
+  code: string;
+  title: string;
+  description: string | null;
+  rank: string;
+}
+
 export function Items() {
   const [items, setItems] = React.useState<EdnItem[]>([]);
-  const [specialties, setSpecialties] = React.useState<Array<{ id: string; name: string }>>([]);
+  const [rawItems, setRawItems] = React.useState<ItemRow[]>([]);
+  const [specialties, setSpecialties] = React.useState<Specialty[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
   const [specialty, setSpecialty] = React.useState("all");
-  const [rank, setRank] = React.useState("all");
   const [status, setStatus] = React.useState("all");
   const [selectedItem, setSelectedItem] = React.useState<EdnItem | null>(null);
-  const [sortField, setSortField] = React.useState<"code" | "rank" | "specialty">("code");
+  const [sortField, setSortField] = React.useState<"code" | "specialty">("code");
+  const [formOpen, setFormOpen] = React.useState(false);
+  const [editingItem, setEditingItem] = React.useState<ItemRow | null>(null);
 
-  // Load items from backend
-  React.useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const [loadedItems, loadedSpecialties] = await Promise.all([
-          invoke<Array<any>>("get_items"),
-          invoke<Array<{ id: string; name: string }>>("get_specialties"),
-        ]);
+  const loadData = React.useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [loadedItems, loadedSpecialties] = await Promise.all([
+        invoke<ItemRow[]>("get_items", {}),
+        invoke<Specialty[]>("get_specialties"),
+      ]);
 
-        // Map backend items to frontend format (fill missing fields with defaults)
-        const mappedItems: EdnItem[] = loadedItems.map((item: any) => ({
+      setRawItems(loadedItems);
+      setSpecialties(loadedSpecialties);
+
+      const specialtyMap = Object.fromEntries(loadedSpecialties.map((s) => [s.id, s.name]));
+
+      const mappedItems: EdnItem[] = loadedItems.map((item) => {
+        // Gather specialty names from junction table (specialty_ids = comma-separated)
+        const specIds = item.specialty_ids
+          ? item.specialty_ids.split(",").filter(Boolean)
+          : item.specialty_id
+          ? [item.specialty_id]
+          : [];
+        const specNames = specIds.map((id) => specialtyMap[id] ?? id);
+        const primarySpec = specNames[0] ?? "Unknown";
+
+        return {
           id: item.id,
           code: item.code,
           title: item.title,
           description: item.description ?? null,
-          specialty: loadedSpecialties.find((s) => s.id === item.specialty_id)?.name ?? "Unknown",
-          rank: item.rank as "A" | "B" | "C",
-          status: "not_started" as const, // Backend doesn't track status yet
+          specialty: primarySpec,
+          specialtyNames: specNames,
+          specialtyIds: specIds,
+          rank: (item.rank ?? "B") as "A" | "B" | "C",
+          status: "not_started" as const,
           category: null,
           subcategory: null,
           difficulty: 3,
@@ -62,18 +88,18 @@ export function Items() {
           linkedErrorIds: [],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-        }));
+        };
+      });
 
-        setItems(mappedItems);
-        setSpecialties(loadedSpecialties);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadData();
+      setItems(mappedItems);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  React.useEffect(() => { loadData(); }, [loadData]);
 
   const filtered = React.useMemo(() => {
     return items
@@ -84,17 +110,32 @@ export function Items() {
           item.title.toLowerCase().includes(q) ||
           item.code.toLowerCase().includes(q) ||
           item.specialty.toLowerCase().includes(q);
-        const matchSpecialty = specialty === "all" || item.specialty === specialty;
-        const matchRank = rank === "all" || item.rank === rank;
+        const matchSpecialty = specialty === "all" || (item as any).specialtyNames?.includes(specialty) || item.specialty === specialty;
         const matchStatus = status === "all" || item.status === status;
-        return matchSearch && matchSpecialty && matchRank && matchStatus;
+        return matchSearch && matchSpecialty && matchStatus;
       })
       .sort((a, b) => {
-        if (sortField === "rank") return a.rank.localeCompare(b.rank);
         if (sortField === "specialty") return a.specialty.localeCompare(b.specialty);
         return a.code.localeCompare(b.code);
       });
-  }, [items, search, specialty, rank, status, sortField]);
+  }, [items, search, specialty, status, sortField]);
+
+  const handleDelete = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Supprimer cet item ?")) return;
+    try {
+      await invoke("delete_item_db", { id });
+      await loadData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleEdit = (raw: ItemRow, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingItem(raw);
+    setFormOpen(true);
+  };
 
   const masteredCount = filtered.filter((i) => i.status === "mastered").length;
   const inProgressCount = filtered.filter((i) => i.status === "in_progress").length;
@@ -121,6 +162,14 @@ export function Items() {
               <span className="text-yellow-400">{inProgressCount} en cours</span>
             </p>
           </div>
+          <Button
+            size="sm"
+            onClick={() => { setEditingItem(null); setFormOpen(true); }}
+            className="gap-1.5"
+          >
+            <Plus className="h-4 w-4" />
+            Ajouter
+          </Button>
         </div>
 
         {/* Filters */}
@@ -138,10 +187,9 @@ export function Items() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Rechercher un item..."
               className="pl-9"
-              disabled={isLoading}
             />
           </div>
-          <Select value={specialty} onValueChange={setSpecialty} disabled={isLoading}>
+          <Select value={specialty} onValueChange={setSpecialty}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Spécialité" />
             </SelectTrigger>
@@ -152,17 +200,6 @@ export function Items() {
                   {s.name}
                 </SelectItem>
               ))}
-            </SelectContent>
-          </Select>
-          <Select value={rank} onValueChange={setRank}>
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="Rang" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les rangs</SelectItem>
-              <SelectItem value="A">Rang A</SelectItem>
-              <SelectItem value="B">Rang B</SelectItem>
-              <SelectItem value="C">Rang C</SelectItem>
             </SelectContent>
           </Select>
           <Select value={status} onValueChange={setStatus}>
@@ -179,17 +216,17 @@ export function Items() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setSortField((p) => p === "code" ? "rank" : p === "rank" ? "specialty" : "code")}
+            onClick={() => setSortField((p) => p === "code" ? "specialty" : "code")}
             className="gap-1.5"
           >
-            <SortAsc className="h-4 w-4" />
-            Tri: {sortField === "code" ? "Code" : sortField === "rank" ? "Rang" : "Spécialité"}
+            <Filter className="h-4 w-4" />
+            Tri: {sortField === "code" ? "Code" : "Spécialité"}
           </Button>
-          {(search || specialty !== "all" || rank !== "all" || status !== "all") && (
+          {(search || specialty !== "all" || status !== "all") && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => { setSearch(""); setSpecialty("all"); setRank("all"); setStatus("all"); }}
+              onClick={() => { setSearch(""); setSpecialty("all"); setStatus("all"); }}
             >
               <Filter className="h-4 w-4 mr-1" />
               Réinitialiser
@@ -204,7 +241,7 @@ export function Items() {
           <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
             <Search className="h-10 w-10 opacity-30" />
             <p className="text-sm">Aucun item ne correspond aux filtres</p>
-            <Button variant="outline" size="sm" onClick={() => { setSearch(""); setSpecialty("all"); setRank("all"); setStatus("all"); }}>
+            <Button variant="outline" size="sm" onClick={() => { setSearch(""); setSpecialty("all"); setStatus("all"); }}>
               Réinitialiser les filtres
             </Button>
           </div>
@@ -214,37 +251,41 @@ export function Items() {
               <TableRow>
                 <TableHead className="w-32">Code</TableHead>
                 <TableHead>Titre</TableHead>
-                <TableHead className="w-40">Spécialité</TableHead>
-                <TableHead className="w-24">Rang</TableHead>
+                <TableHead className="w-48">Matière(s)</TableHead>
                 <TableHead className="w-36">Statut</TableHead>
                 <TableHead className="w-24">Erreurs</TableHead>
+                <TableHead className="w-20"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((item) => {
+                const raw = rawItems.find((r) => r.id === item.id);
                 const st = statusConfig[item.status];
+                const specNames = (item as any).specialtyNames as string[] | undefined;
                 return (
                   <TableRow
                     key={item.id}
-                    className="cursor-pointer"
+                    className="cursor-pointer group"
                     onClick={() => setSelectedItem(item)}
                   >
                     <TableCell className="font-mono text-xs text-muted-foreground">{item.code}</TableCell>
                     <TableCell>
                       <span className="font-medium text-sm">{item.title}</span>
-                      {item.notes && (
-                        <span className="ml-2 text-yellow-400 text-xs">★</span>
-                      )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className="text-xs capitalize">
-                        {item.specialty.replace(/_/g, " ")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={cn("border text-xs", rankColors[item.rank])}>
-                        Rang {item.rank}
-                      </Badge>
+                      <div className="flex flex-wrap gap-1">
+                        {specNames && specNames.length > 0 ? (
+                          specNames.map((name) => (
+                            <Badge key={name} variant="secondary" className="text-xs capitalize">
+                              {name}
+                            </Badge>
+                          ))
+                        ) : (
+                          <Badge variant="secondary" className="text-xs capitalize">
+                            {item.specialty}
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <span className={cn("text-sm", st.color)}>{st.label}</span>
@@ -258,6 +299,24 @@ export function Items() {
                         <span className="text-muted-foreground text-sm">—</span>
                       )}
                     </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => raw && handleEdit(raw, e)}
+                          className="p-1 hover:text-primary transition-colors"
+                          title="Modifier"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => handleDelete(item.id as number, e)}
+                          className="p-1 hover:text-destructive transition-colors"
+                          title="Supprimer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -270,6 +329,24 @@ export function Items() {
         item={selectedItem}
         open={selectedItem !== null}
         onClose={() => setSelectedItem(null)}
+      />
+
+      <ItemFormModal
+        open={formOpen}
+        onClose={() => { setFormOpen(false); setEditingItem(null); }}
+        onSaved={loadData}
+        specialties={specialties}
+        initialData={editingItem ? {
+          id: editingItem.id,
+          title: editingItem.title,
+          code: editingItem.code,
+          description: editingItem.description ?? "",
+          specialty_ids: editingItem.specialty_ids
+            ? editingItem.specialty_ids.split(",").filter(Boolean)
+            : editingItem.specialty_id
+            ? [editingItem.specialty_id]
+            : [],
+        } : undefined}
       />
     </div>
   );

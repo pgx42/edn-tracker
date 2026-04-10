@@ -93,11 +93,38 @@ export const HighlightCanvas: React.FC<HighlightCanvasProps> = ({
     for (const { rect } of anchorRects) {
       const w = getRectWidth(rect);
       const h = getRectHeight(rect);
-      ctx.fillStyle = "rgba(59, 130, 246, 0.2)";
-      ctx.fillRect(rect[0], rect[1], w, h);
-      ctx.strokeStyle = "#3b82f6";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(rect[0], rect[1], w, h);
+      const isPin = w < 8 && h < 8;
+
+      if (isPin) {
+        // Draw a small circle icon for point annotations
+        const cx = rect[0];
+        const cy = rect[1];
+        const r = 9;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(59, 130, 246, 0.15)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.65)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // Small message icon lines
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.85)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx - 4, cy - 2);
+        ctx.lineTo(cx + 4, cy - 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx - 4, cy + 1);
+        ctx.lineTo(cx + 2, cy + 1);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = "rgba(59, 130, 246, 0.2)";
+        ctx.fillRect(rect[0], rect[1], w, h);
+        ctx.strokeStyle = "#3b82f6";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(rect[0], rect[1], w, h);
+      }
     }
 
     for (const { annotation, rect } of annotationRects) {
@@ -128,28 +155,35 @@ export const HighlightCanvas: React.FC<HighlightCanvasProps> = ({
       />
 
       {/* DOM hit areas for anchors — sit above the text layer (z-index: 0) only in their bbox */}
-      {anchorRects.map(({ anchor, rect }) => (
-        <div
-          key={anchor.id}
-          onClick={onAnchorClick ? (e) => {
-            const el = e.currentTarget.getBoundingClientRect();
-            onAnchorClick(anchor, e.clientX - el.left + rect[0], e.clientY - el.top + rect[1]);
-          } : undefined}
-          onDoubleClick={onAnchorDoubleClick ? (e) => {
-            const el = e.currentTarget.getBoundingClientRect();
-            onAnchorDoubleClick(anchor, e.clientX - el.left + rect[0], e.clientY - el.top + rect[1]);
-          } : undefined}
-          style={{
-            position: "absolute",
-            left: rect[0],
-            top: rect[1],
-            width: getRectWidth(rect),
-            height: getRectHeight(rect),
-            cursor: "pointer",
-            zIndex: 5,
-          }}
-        />
-      ))}
+      {anchorRects.map(({ anchor, rect }) => {
+        const w = getRectWidth(rect);
+        const h = getRectHeight(rect);
+        const isPin = w < 8 && h < 8;
+        const PIN_SIZE = 22;
+        return (
+          <div
+            key={anchor.id}
+            onClick={onAnchorClick ? (e) => {
+              const el = e.currentTarget.getBoundingClientRect();
+              onAnchorClick(anchor, e.clientX - el.left + rect[0], e.clientY - el.top + rect[1]);
+            } : undefined}
+            onDoubleClick={onAnchorDoubleClick ? (e) => {
+              const el = e.currentTarget.getBoundingClientRect();
+              onAnchorDoubleClick(anchor, e.clientX - el.left + rect[0], e.clientY - el.top + rect[1]);
+            } : undefined}
+            style={{
+              position: "absolute",
+              left: isPin ? rect[0] - PIN_SIZE / 2 : rect[0],
+              top: isPin ? rect[1] - PIN_SIZE / 2 : rect[1],
+              width: isPin ? PIN_SIZE : w,
+              height: isPin ? PIN_SIZE : h,
+              cursor: "pointer",
+              zIndex: 5,
+              borderRadius: isPin ? "50%" : undefined,
+            }}
+          />
+        );
+      })}
 
       {/* DOM hit areas for annotations */}
       {annotationRects.map(({ annotation, rect }) => (

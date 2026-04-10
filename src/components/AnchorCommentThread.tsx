@@ -139,31 +139,26 @@ export const AnchorCommentThread: React.FC<AnchorCommentThreadProps> = ({
             </p>
           )}
 
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             {comments.map((comment) => (
               <div
                 key={comment.id}
-                className="text-xs bg-muted/30 rounded p-2 group"
+                className="text-xs bg-muted/30 rounded px-2 py-1.5 group"
               >
                 <div className="flex items-start justify-between gap-1">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground">
-                      {comment.author}
-                    </p>
-                    <p className="text-muted-foreground">
-                      {formatDate(comment.created_at)}
-                    </p>
-                  </div>
+                  <p className="flex-1 text-foreground break-words leading-snug">
+                    {comment.content}
+                  </p>
                   <button
                     onClick={() => handleDeleteComment(comment.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5"
                     title="Supprimer"
                   >
                     <Trash2 className="h-3 w-3 text-destructive hover:text-destructive/80" />
                   </button>
                 </div>
-                <p className="mt-1 text-foreground break-words">
-                  {comment.content}
+                <p className="text-muted-foreground text-[10px] mt-0.5">
+                  {formatDate(comment.created_at)}
                 </p>
               </div>
             ))}

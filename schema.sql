@@ -34,6 +34,15 @@ CREATE TABLE IF NOT EXISTS items (
 CREATE INDEX idx_items_specialty ON items(specialty_id);
 CREATE INDEX idx_items_rank ON items(rank);
 
+-- Many-to-many: items <-> specialties
+CREATE TABLE IF NOT EXISTS item_specialties (
+    item_id INTEGER NOT NULL,
+    specialty_id TEXT NOT NULL,
+    PRIMARY KEY (item_id, specialty_id),
+    FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+    FOREIGN KEY (specialty_id) REFERENCES specialties(id) ON DELETE CASCADE
+);
+
 -- ============================================================================
 -- 2. PDF DOCUMENTS & PAGES
 -- ============================================================================
@@ -418,6 +427,8 @@ CREATE TABLE IF NOT EXISTS study_sessions (
 
     item_ids TEXT,                -- JSON array of items studied
     note TEXT,
+    completed INTEGER NOT NULL DEFAULT 0,
+    calendar_event_id TEXT,       -- Apple Calendar EKEvent identifier
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

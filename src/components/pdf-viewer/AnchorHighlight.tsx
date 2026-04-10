@@ -1,4 +1,5 @@
 import * as React from "react";
+import { MessageCircle } from "lucide-react";
 import type { Anchor } from "./AnchorCreationModal";
 
 interface AnchorHighlightProps {
@@ -11,9 +12,15 @@ interface AnchorHighlightProps {
   onAnchorDoubleClick?: (anchor: Anchor, x: number, y: number) => void;
 }
 
+/** An anchor is a "pin" (point comment) when its rendered width/height is negligible. */
+function isPin(anchor: Anchor, pageWidth: number): boolean {
+  return (anchor.w ?? 0) * pageWidth < 8;
+}
+
 /**
- * Renders semi-transparent highlight overlays for anchors on a page.
- * Coordinates stored as normalized (0-1); multiplied by page dimensions for display.
+ * Renders anchor overlays on a PDF page.
+ * - Point anchors (w≈0, h≈0) → small comment pin icon
+ * - Zone anchors (w>0, h>0)  → semi-transparent blue rectangle (legacy)
  */
 export const AnchorHighlight: React.FC<AnchorHighlightProps> = ({
   anchors,
@@ -41,6 +48,52 @@ export const AnchorHighlight: React.FC<AnchorHighlightProps> = ({
       {pageAnchors.map((anchor) => {
         const left = (anchor.x ?? 0) * pageWidth;
         const top = (anchor.y ?? 0) * pageHeight;
+        const pin = isPin(anchor, pageWidth);
+
+        if (pin) {
+          // ── Pin icon ──────────────────────────────────────────────────────
+          return (
+            <button
+              key={anchor.id}
+              title={anchor.label || "Commentaire"}
+              onClick={() => onAnchorClick?.(anchor)}
+              onDoubleClick={() => onAnchorDoubleClick?.(anchor, left, top)}
+              style={{
+                position: "absolute",
+                left: left - 9,
+                top: top - 9,
+                width: 22,
+                height: 22,
+                pointerEvents: "auto",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "50%",
+                background: "rgba(59, 130, 246, 0.15)",
+                border: "1.5px solid rgba(59, 130, 246, 0.6)",
+                transition: "background 0.15s, transform 0.1s",
+                zIndex: 16,
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "rgba(59, 130, 246, 0.35)";
+                (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.15)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "rgba(59, 130, 246, 0.15)";
+                (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
+              }}
+            >
+              <MessageCircle
+                style={{ width: 12, height: 12, color: "rgba(59, 130, 246, 0.9)" }}
+              />
+            </button>
+          );
+        }
+
+        // ── Zone rectangle (legacy) ───────────────────────────────────────
         return (
           <div
             key={anchor.id}
