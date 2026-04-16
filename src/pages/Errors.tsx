@@ -31,6 +31,7 @@ export function Errors() {
   const [typeFilter, setTypeFilter] = React.useState("all");
   const [severityFilter, setSeverityFilter] = React.useState("all");
   const [statusFilter, setStatusFilter] = React.useState("all");
+  const [sourceFilter, setSourceFilter] = React.useState("all"); // "all" | "annale" | "manual"
   const [selectedError, setSelectedError] = React.useState<ErrorEntry | null>(null);
   const [showCreateModal, setShowCreateModal] = React.useState(false);
 
@@ -62,9 +63,12 @@ export function Errors() {
       const matchStatus = statusFilter === "all"
         ? true
         : statusFilter === "open" ? !isResolved : isResolved;
-      return matchSearch && matchType && matchSeverity && matchStatus;
+      const matchSource = sourceFilter === "all"
+        ? true
+        : sourceFilter === "annale" ? !!(err as any).annale_session_id : !(err as any).annale_session_id;
+      return matchSearch && matchType && matchSeverity && matchStatus && matchSource;
     });
-  }, [errors, search, typeFilter, severityFilter, statusFilter]);
+  }, [errors, search, typeFilter, severityFilter, statusFilter, sourceFilter]);
 
   const openCount = errors.filter((e) => e.resolved_at === null).length;
   const criticalCount = errors.filter((e) => e.severity === "critical" && e.resolved_at === null).length;
@@ -166,6 +170,16 @@ export function Errors() {
                 <SelectItem value="all">Tous</SelectItem>
                 <SelectItem value="open">Ouverts</SelectItem>
                 <SelectItem value="resolved">Résolus</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="h-8 text-xs w-28">
+                <SelectValue placeholder="Source" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes sources</SelectItem>
+                <SelectItem value="annale">Annales</SelectItem>
+                <SelectItem value="manual">Manuelles</SelectItem>
               </SelectContent>
             </Select>
           </div>

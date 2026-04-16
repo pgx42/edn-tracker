@@ -14,6 +14,7 @@ pub struct ErrorEntry {
     pub severity: String,
     pub created_at: Option<String>,
     pub resolved_at: Option<String>,
+    pub annale_session_id: Option<String>,
 }
 
 /// List all errors, optionally filtered
@@ -21,12 +22,13 @@ pub struct ErrorEntry {
 pub async fn list_errors(
     item_id: Option<i32>,
     resolved_only: Option<bool>,
+    annale_only: Option<bool>,
     db: tauri::State<'_, DbPool>,
 ) -> Result<Vec<ErrorEntry>, String> {
-    let mut query_str = "SELECT id, item_id, title, description, source_anchor_id, error_type, severity, created_at, resolved_at FROM errors WHERE 1=1".to_string();
+    let mut query_str = "SELECT id, item_id, title, description, source_anchor_id, error_type, severity, created_at, resolved_at, annale_session_id FROM errors WHERE 1=1".to_string();
 
-    if let Some(item_id_val) = item_id {
-        query_str.push_str(&format!(" AND item_id = {}", item_id_val));
+    if item_id.is_some() {
+        query_str.push_str(" AND item_id = ?");
     }
 
     if let Some(resolved) = resolved_only {
@@ -37,9 +39,18 @@ pub async fn list_errors(
         }
     }
 
+    if let Some(true) = annale_only {
+        query_str.push_str(" AND annale_session_id IS NOT NULL");
+    }
+
     query_str.push_str(" ORDER BY created_at DESC");
 
-    let errors = sqlx::query_as::<_, ErrorEntry>(&query_str)
+    let mut q = sqlx::query_as::<_, ErrorEntry>(&query_str);
+    if let Some(item_id_val) = item_id {
+        q = q.bind(item_id_val);
+    }
+
+    let errors = q
         .fetch_all(db.inner())
         .await
         .map_err(|e| format!("list_errors error: {e}"))?;
@@ -93,6 +104,7 @@ pub async fn create_error(
         severity: db_severity.to_string(),
         created_at: None,
         resolved_at: None,
+        annale_session_id: None,
     })
 }
 
@@ -109,7 +121,7 @@ pub async fn update_error(
 ) -> Result<ErrorEntry, String> {
     // Fetch current error
     let current = sqlx::query_as::<_, ErrorEntry>(
-        "SELECT id, item_id, title, description, source_anchor_id, error_type, severity, created_at, resolved_at FROM errors WHERE id = ?",
+        "SELECT id, item_id, title, description, source_anchor_id, error_type, severity, created_at, resolved_at, annale_session_id FROM errors WHERE id = ?",
     )
     .bind(&id)
     .fetch_optional(db.inner())
@@ -165,7 +177,7 @@ pub async fn update_error(
 
     // Fetch updated entry to return with correct resolved_at timestamp
     let updated = sqlx::query_as::<_, ErrorEntry>(
-        "SELECT id, item_id, title, description, source_anchor_id, error_type, severity, created_at, resolved_at FROM errors WHERE id = ?",
+        "SELECT id, item_id, title, description, source_anchor_id, error_type, severity, created_at, resolved_at, annale_session_id FROM errors WHERE id = ?",
     )
     .bind(&id)
     .fetch_one(db.inner())

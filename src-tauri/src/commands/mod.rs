@@ -16,6 +16,10 @@ pub mod anki_media;
 pub mod anki_local;
 pub mod planning;
 pub mod calendar;
+pub mod settings;
+pub mod j_method;
+pub mod annales;
+pub mod tracking;
 
 use serde::Serialize;
 use tauri::State;

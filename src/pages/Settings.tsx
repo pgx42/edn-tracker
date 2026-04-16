@@ -1,10 +1,13 @@
 import * as React from "react";
-import { Moon, Sun, Database, Download, Upload, Brain, Info, Shield } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { Moon, Sun, Database, Download, Upload, Brain, Info, Shield, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useUiStore } from "@/stores/ui";
+import { toast } from "@/hooks/useToast";
+import { JMethodConfigPanel } from "@/components/JMethodConfigPanel";
 import { cn } from "@/lib/utils";
 
 function SettingsSection({ title, icon: Icon, children }: {
@@ -110,15 +113,32 @@ export function Settings() {
         <Separator />
 
         <div className="flex gap-3">
-          <Button variant="outline" size="sm" className="gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={async () => {
+              try {
+                const path = await invoke<string>("export_backup");
+                toast({ title: "Sauvegarde exportée", description: path });
+              } catch (e) {
+                toast({ title: "Erreur", description: String(e), variant: "destructive" });
+              }
+            }}
+          >
             <Download className="h-4 w-4" />
             Exporter sauvegarde
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5">
+          <Button variant="outline" size="sm" className="gap-1.5" disabled title="Bientôt disponible">
             <Upload className="h-4 w-4" />
             Restaurer
           </Button>
         </div>
+      </SettingsSection>
+
+      {/* Méthode des J */}
+      <SettingsSection title="Méthode des J" icon={CalendarClock}>
+        <JMethodConfigPanel />
       </SettingsSection>
 
       {/* AI Module */}
@@ -180,7 +200,20 @@ export function Settings() {
 
         <Separator />
 
-        <Button variant="destructive" size="sm" className="gap-1.5">
+        <Button
+          variant="destructive"
+          size="sm"
+          className="gap-1.5"
+          onClick={async () => {
+            if (!confirm("Êtes-vous sûr ? Toutes vos données seront supprimées définitivement.")) return;
+            try {
+              await invoke("reset_database");
+              toast({ title: "Base réinitialisée", description: "Rechargez l'application." });
+            } catch (e) {
+              toast({ title: "Erreur", description: String(e), variant: "destructive" });
+            }
+          }}
+        >
           Réinitialiser toutes les données
         </Button>
       </SettingsSection>

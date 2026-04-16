@@ -149,18 +149,20 @@ pub async fn update_item_db(
     code: String,
     description: Option<String>,
     specialty_ids: Vec<String>,
+    status: Option<String>,
     db: tauri::State<'_, DbPool>,
 ) -> Result<bool, String> {
     let pool = db.inner();
     let primary_specialty = specialty_ids.first().cloned().unwrap_or_default();
 
     let rows = sqlx::query(
-        "UPDATE items SET title = ?, code = ?, description = ?, specialty_id = ? WHERE id = ?",
+        "UPDATE items SET title = ?, code = ?, description = ?, specialty_id = ?, status = ? WHERE id = ?",
     )
     .bind(&title)
     .bind(&code)
     .bind(&description)
     .bind(&primary_specialty)
+    .bind(&status)
     .bind(id)
     .execute(pool)
     .await

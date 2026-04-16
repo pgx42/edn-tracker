@@ -58,8 +58,15 @@ const MONTH_NAMES_FR = [
   "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
 ];
 
+interface ReviewDay {
+  date: string;          // "YYYY-MM-DD"
+  count: number;         // number of reviews scheduled
+  completedCount: number;
+}
+
 interface MiniCalendarProps {
   sessions: StudySession[];
+  reviewDays: ReviewDay[];
   selectedDay: Date | null;
   currentMonth: Date;
   onDayClick: (day: Date) => void;
@@ -68,7 +75,7 @@ interface MiniCalendarProps {
 }
 
 function MiniCalendar({
-  sessions, selectedDay, currentMonth, onDayClick, onPrevMonth, onNextMonth,
+  sessions, reviewDays, selectedDay, currentMonth, onDayClick, onPrevMonth, onNextMonth,
 }: MiniCalendarProps) {
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -90,6 +97,15 @@ function MiniCalendar({
       daySpecialties[day].push(s.specialtyId);
     }
     if (s.completed) completedDays.add(day);
+  }
+
+  // J-method review days
+  const reviewDayMap: Record<number, { total: number; done: number }> = {};
+  for (const r of reviewDays) {
+    const d = new Date(r.date + "T12:00:00");
+    if (d.getFullYear() !== year || d.getMonth() !== month) continue;
+    const day = d.getDate();
+    reviewDayMap[day] = { total: r.count, done: r.completedCount };
   }
 
   const cells: (number | null)[] = [
@@ -137,28 +153,34 @@ function MiniCalendar({
               )}
             >
               {day}
-              {/* Specialty dots below the number */}
-              {hasSession && specs.length > 0 && (
-                <div className="flex gap-0.5 mt-0.5 absolute bottom-0.5">
-                  {specs.slice(0, 3).map((spId) => {
-                    const sp = getSpecialty(spId);
-                    return (
-                      <span
-                        key={spId}
-                        className="h-1 w-1 rounded-full"
-                        style={{ backgroundColor: sp.color }}
-                      />
-                    );
-                  })}
-                </div>
-              )}
+              {/* Specialty dots + review indicator below the number */}
+              <div className="flex gap-0.5 mt-0.5 absolute bottom-0.5">
+                {hasSession && specs.slice(0, 3).map((spId) => {
+                  const sp = getSpecialty(spId);
+                  return (
+                    <span
+                      key={spId}
+                      className="h-1 w-1 rounded-full"
+                      style={{ backgroundColor: sp.color }}
+                    />
+                  );
+                })}
+                {reviewDayMap[day] && (
+                  <span className={cn(
+                    "h-1 w-1 rounded-full",
+                    reviewDayMap[day].done >= reviewDayMap[day].total
+                      ? "bg-green-400"
+                      : "bg-orange-400"
+                  )} />
+                )}
+              </div>
             </button>
           );
         })}
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+      <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground flex-wrap">
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-green-500/60 inline-block" />
           Complétée
@@ -166,6 +188,10 @@ function MiniCalendar({
         <span className="flex items-center gap-1">
           <span className="h-1 w-4 rounded-full bg-gradient-to-r from-blue-500 via-violet-500 to-orange-500 inline-block" />
           Spécialités
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="h-2 w-2 rounded-full bg-orange-400 inline-block" />
+          Révision J
         </span>
       </div>
     </div>
@@ -183,6 +209,7 @@ export function Planning() {
 
   const [selectedDay, setSelectedDay] = React.useState<Date | null>(null);
   const [currentMonth, setCurrentMonth] = React.useState<Date>(new Date());
+  const [reviewDays, setReviewDays] = React.useState<ReviewDay[]>([]);
   const [showGoalModal, setShowGoalModal] = React.useState(false);
   const [showSessionModal, setShowSessionModal] = React.useState(false);
   const [sessionDefaultHour, setSessionDefaultHour] = React.useState(8);
@@ -191,8 +218,12 @@ export function Planning() {
 
   React.useEffect(() => {
     loadSessions();
+    loadReviewDays();
     checkCalendarAuth();
   }, []);
+
+  // Reload review days when month changes
+  React.useEffect(() => { loadReviewDays(); }, [currentMonth]);
 
   React.useEffect(() => {
     if (!selectedDay) return;
@@ -218,6 +249,33 @@ export function Planning() {
       const raw = await invoke<Array<Record<string, unknown>>>("get_sessions");
       setSessions(raw.map(mapSession));
     } catch { /* ignore */ }
+  }
+
+  async function loadReviewDays() {
+    try {
+      const y = currentMonth.getFullYear();
+      const m = currentMonth.getMonth();
+      const dateFrom = `${y}-${String(m + 1).padStart(2, "0")}-01`;
+      const lastDay = new Date(y, m + 1, 0).getDate();
+      const dateTo = `${y}-${String(m + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+      const rows = await invoke<Array<{ id: string; item_id: number; scheduled_date: string; j_step: number; j_label: string; completed: number }>>(
+        "get_review_calendar", { dateFrom, dateTo }
+      );
+      // Group by date
+      const map: Record<string, { total: number; done: number }> = {};
+      for (const r of rows) {
+        if (!map[r.scheduled_date]) map[r.scheduled_date] = { total: 0, done: 0 };
+        map[r.scheduled_date].total++;
+        if (r.completed) map[r.scheduled_date].done++;
+      }
+      setReviewDays(
+        Object.entries(map).map(([date, { total, done }]) => ({
+          date,
+          count: total,
+          completedCount: done,
+        }))
+      );
+    } catch { setReviewDays([]); }
   }
 
   async function checkCalendarAuth() {
@@ -421,6 +479,7 @@ export function Planning() {
         )}>
           <MiniCalendar
             sessions={sessions}
+            reviewDays={reviewDays}
             selectedDay={selectedDay}
             currentMonth={currentMonth}
             onDayClick={(day) =>

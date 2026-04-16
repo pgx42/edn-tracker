@@ -77,15 +77,23 @@ pub async fn get_sessions(
                  FROM study_sessions WHERE 1=1"
         .to_string();
 
-    if let Some(from) = &date_from {
-        q.push_str(&format!(" AND start_time >= '{}'", from));
+    if date_from.is_some() {
+        q.push_str(" AND start_time >= ?");
     }
-    if let Some(to) = &date_to {
-        q.push_str(&format!(" AND start_time <= '{}'", to));
+    if date_to.is_some() {
+        q.push_str(" AND start_time <= ?");
     }
     q.push_str(" ORDER BY start_time ASC");
 
-    sqlx::query_as::<_, StudySessionRow>(&q)
+    let mut query = sqlx::query_as::<_, StudySessionRow>(&q);
+    if let Some(from) = &date_from {
+        query = query.bind(from);
+    }
+    if let Some(to) = &date_to {
+        query = query.bind(to);
+    }
+
+    query
         .fetch_all(db.inner())
         .await
         .map_err(|e| format!("get_sessions error: {e}"))

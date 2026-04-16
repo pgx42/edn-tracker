@@ -16,6 +16,7 @@ pub struct Item {
     pub title: String,
     pub description: Option<String>,
     pub rank: String,
+    pub status: Option<String>,
     /// Comma-separated specialty IDs from the item_specialties junction table.
     /// Falls back to specialty_id if junction table has no entries.
     pub specialty_ids: Option<String>,
@@ -39,7 +40,7 @@ pub async fn get_items(
 ) -> Result<Vec<Item>, String> {
     if let Some(spec_id) = specialty_id {
         sqlx::query_as::<_, Item>(
-            "SELECT i.id, i.specialty_id, i.code, i.title, i.description, i.rank,
+            "SELECT i.id, i.specialty_id, i.code, i.title, i.description, i.rank, i.status,
                     GROUP_CONCAT(iss.specialty_id) as specialty_ids
              FROM items i
              LEFT JOIN item_specialties iss ON iss.item_id = i.id
@@ -55,7 +56,7 @@ pub async fn get_items(
         .map_err(|e| e.to_string())
     } else {
         sqlx::query_as::<_, Item>(
-            "SELECT i.id, i.specialty_id, i.code, i.title, i.description, i.rank,
+            "SELECT i.id, i.specialty_id, i.code, i.title, i.description, i.rank, i.status,
                     GROUP_CONCAT(iss.specialty_id) as specialty_ids
              FROM items i
              LEFT JOIN item_specialties iss ON iss.item_id = i.id
@@ -72,7 +73,12 @@ pub async fn get_items(
 #[tauri::command]
 pub async fn get_item(id: i32, db: tauri::State<'_, DbPool>) -> Result<Option<Item>, String> {
     sqlx::query_as::<_, Item>(
-        "SELECT id, specialty_id, code, title, description, rank FROM items WHERE id = ?",
+        "SELECT i.id, i.specialty_id, i.code, i.title, i.description, i.rank, i.status,
+                GROUP_CONCAT(iss.specialty_id) as specialty_ids
+         FROM items i
+         LEFT JOIN item_specialties iss ON iss.item_id = i.id
+         WHERE i.id = ?
+         GROUP BY i.id",
     )
     .bind(id)
     .fetch_optional(db.inner())
@@ -580,6 +586,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            status: Some("not_started".to_string()),
             specialty_ids: None,
         });
         item_id += 1;
@@ -599,6 +606,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            status: Some("not_started".to_string()),
             specialty_ids: None,
         });
         item_id += 1;
@@ -618,6 +626,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            status: Some("not_started".to_string()),
             specialty_ids: None,
         });
         item_id += 1;
@@ -637,6 +646,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            status: Some("not_started".to_string()),
             specialty_ids: None,
         });
         item_id += 1;
@@ -656,6 +666,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            status: Some("not_started".to_string()),
             specialty_ids: None,
         });
         item_id += 1;
@@ -675,6 +686,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            status: Some("not_started".to_string()),
             specialty_ids: None,
         });
         item_id += 1;
@@ -694,6 +706,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            status: Some("not_started".to_string()),
             specialty_ids: None,
         });
         item_id += 1;
@@ -713,6 +726,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            status: Some("not_started".to_string()),
             specialty_ids: None,
         });
         item_id += 1;
@@ -732,6 +746,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            status: Some("not_started".to_string()),
             specialty_ids: None,
         });
         item_id += 1;
@@ -751,6 +766,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            status: Some("not_started".to_string()),
             specialty_ids: None,
         });
         item_id += 1;
@@ -770,6 +786,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            status: Some("not_started".to_string()),
             specialty_ids: None,
         });
         item_id += 1;
@@ -789,6 +806,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            status: Some("not_started".to_string()),
             specialty_ids: None,
         });
         item_id += 1;
@@ -808,6 +826,7 @@ fn generate_all_items() -> Vec<Item> {
             } else {
                 "C".to_string()
             },
+            status: Some("not_started".to_string()),
             specialty_ids: None,
         });
         item_id += 1;

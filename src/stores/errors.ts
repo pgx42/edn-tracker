@@ -9,7 +9,7 @@ interface ErrorsState {
 
   setEntries: (entries: ErrorEntry[]) => void;
   addEntry: (entry: ErrorEntry) => void;
-  updateEntry: (id: number, patch: Partial<ErrorEntry>) => void;
+  updateEntry: (id: string, patch: Partial<ErrorEntry>) => void;
   setFilter: (filter: "all" | "unresolved" | "resolved") => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;

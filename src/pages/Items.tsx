@@ -1,6 +1,6 @@
 import * as React from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Search, Filter, Loader2, AlertCircle, Plus, Pencil, Trash2 } from "lucide-react";
+import { Search, Filter, Loader2, AlertCircle, Plus, Pencil, Trash2, Play, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ItemDetailModal } from "@/components/ItemDetailModal";
 import { ItemFormModal } from "@/components/ItemFormModal";
+import { ItemReviewModal } from "@/components/ItemReviewModal";
+import { toast } from "@/hooks/useToast";
 import type { EdnItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +32,7 @@ interface ItemRow {
   title: string;
   description: string | null;
   rank: string;
+  status: string | null;
 }
 
 export function Items() {
@@ -45,6 +48,36 @@ export function Items() {
   const [sortField, setSortField] = React.useState<"code" | "specialty">("code");
   const [formOpen, setFormOpen] = React.useState(false);
   const [editingItem, setEditingItem] = React.useState<ItemRow | null>(null);
+  const [itemTracking, setItemTracking] = React.useState<Record<number, { college_lu: boolean; fiche_faite: boolean }>>({});
+  const [reviewModalOpen, setReviewModalOpen] = React.useState(false);
+  const [reviewTarget, setReviewTarget] = React.useState<{ scheduleId: string; title: string; jLabel: string } | null>(null);
+  const [dueSchedules, setDueSchedules] = React.useState<Record<number, { schedule_id: string; j_label: string }>>({});
+
+  // Load due items for J-method badges
+  const loadDueItems = React.useCallback(async () => {
+    try {
+      const config = await invoke<{ enabled: boolean }>("get_j_method_config");
+      if (!config.enabled) return;
+      const due = await invoke<Array<{ schedule_id: string; item_id: number; j_label: string }>>("get_due_items", { date: null });
+      const map: Record<number, { schedule_id: string; j_label: string }> = {};
+      for (const d of due) {
+        if (!map[d.item_id]) map[d.item_id] = { schedule_id: d.schedule_id, j_label: d.j_label };
+      }
+      setDueSchedules(map);
+    } catch { /* J-method not available */ }
+  }, []);
+
+  // Load tracking data (college_lu, fiche_faite)
+  const loadTracking = React.useCallback(async () => {
+    try {
+      const rows = await invoke<Array<{ id: number; college_lu: number; fiche_faite: number }>>("get_items_tracking", { specialtyId: null });
+      const map: Record<number, { college_lu: boolean; fiche_faite: boolean }> = {};
+      for (const r of rows) {
+        map[r.id] = { college_lu: r.college_lu === 1, fiche_faite: r.fiche_faite === 1 };
+      }
+      setItemTracking(map);
+    } catch { /* tracking not available */ }
+  }, []);
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
@@ -79,7 +112,7 @@ export function Items() {
           specialtyNames: specNames,
           specialtyIds: specIds,
           rank: (item.rank ?? "B") as "A" | "B" | "C",
-          status: "not_started" as const,
+          status: (item.status ?? "not_started") as "not_started" | "in_progress" | "mastered",
           category: null,
           subcategory: null,
           difficulty: 3,
@@ -99,7 +132,7 @@ export function Items() {
     }
   }, []);
 
-  React.useEffect(() => { loadData(); }, [loadData]);
+  React.useEffect(() => { loadData(); loadDueItems(); loadTracking(); }, [loadData, loadDueItems, loadTracking]);
 
   const filtered = React.useMemo(() => {
     return items
@@ -128,6 +161,54 @@ export function Items() {
       await loadData();
     } catch (err) {
       alert(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleToggleTracking = async (itemId: number, field: "college_lu" | "fiche_faite", e: React.MouseEvent) => {
+    e.stopPropagation();
+    const current = itemTracking[itemId]?.[field] ?? false;
+    try {
+      await invoke("update_item_tracking", {
+        itemId,
+        collegeLu: field === "college_lu" ? !current : null,
+        ficheFaite: field === "fiche_faite" ? !current : null,
+      });
+      setItemTracking((prev) => ({
+        ...prev,
+        [itemId]: { ...prev[itemId], [field]: !current },
+      }));
+    } catch (err) {
+      toast({ title: "Erreur", description: String(err), variant: "destructive" });
+    }
+  };
+
+  const handleStartReview = async (itemId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await invoke("start_item_review", { itemId });
+      toast({ title: "Cycle de révision lancé", description: "Les rappels sont planifiés." });
+      await loadData();
+      await loadDueItems();
+    } catch (err) {
+      toast({ title: "Erreur", description: String(err), variant: "destructive" });
+    }
+  };
+
+  const handleOpenReviewModal = (scheduleId: string, title: string, jLabel: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setReviewTarget({ scheduleId, title, jLabel });
+    setReviewModalOpen(true);
+  };
+
+  const handleCompleteReview = async (quality: number, notes?: string) => {
+    if (!reviewTarget) return;
+    try {
+      await invoke("complete_review", { scheduleId: reviewTarget.scheduleId, quality, notes: notes ?? null });
+      toast({ title: "Révision enregistrée" });
+      await loadData();
+      await loadDueItems();
+    } catch (err) {
+      toast({ title: "Erreur", description: String(err), variant: "destructive" });
     }
   };
 
@@ -253,7 +334,8 @@ export function Items() {
                 <TableHead>Titre</TableHead>
                 <TableHead className="w-48">Matière(s)</TableHead>
                 <TableHead className="w-36">Statut</TableHead>
-                <TableHead className="w-24">Erreurs</TableHead>
+                <TableHead className="w-24 text-center">Collège lu</TableHead>
+                <TableHead className="w-24 text-center">Fiche faite</TableHead>
                 <TableHead className="w-20"></TableHead>
               </TableRow>
             </TableHeader>
@@ -290,31 +372,74 @@ export function Items() {
                     <TableCell>
                       <span className={cn("text-sm", st.color)}>{st.label}</span>
                     </TableCell>
-                    <TableCell>
-                      {item.linkedErrorIds && item.linkedErrorIds.length > 0 ? (
-                        <span className="text-red-400 text-sm font-medium">
-                          {item.linkedErrorIds.length}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">—</span>
-                      )}
+                    <TableCell className="text-center">
+                      <button
+                        onClick={(e) => handleToggleTracking(item.id as number, "college_lu", e)}
+                        className={cn(
+                          "w-5 h-5 rounded border transition-colors inline-flex items-center justify-center",
+                          itemTracking[item.id as number]?.college_lu
+                            ? "bg-green-500/20 border-green-500/50 text-green-400"
+                            : "border-border hover:border-muted-foreground"
+                        )}
+                        title="Collège lu"
+                      >
+                        {itemTracking[item.id as number]?.college_lu && "✓"}
+                      </button>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <button
+                        onClick={(e) => handleToggleTracking(item.id as number, "fiche_faite", e)}
+                        className={cn(
+                          "w-5 h-5 rounded border transition-colors inline-flex items-center justify-center",
+                          itemTracking[item.id as number]?.fiche_faite
+                            ? "bg-blue-500/20 border-blue-500/50 text-blue-400"
+                            : "border-border hover:border-muted-foreground"
+                        )}
+                        title="Fiche faite"
+                      >
+                        {itemTracking[item.id as number]?.fiche_faite && "✓"}
+                      </button>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => raw && handleEdit(raw, e)}
-                          className="p-1 hover:text-primary transition-colors"
-                          title="Modifier"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => handleDelete(item.id as number, e)}
-                          className="p-1 hover:text-destructive transition-colors"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                      <div className="flex items-center gap-1">
+                        {/* J-method actions */}
+                        {item.status === "not_started" && (
+                          <button
+                            onClick={(e) => handleStartReview(item.id as number, e)}
+                            className="p-1 hover:text-green-400 transition-colors"
+                            title="Commencer la révision (Méthode des J)"
+                          >
+                            <Play className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {dueSchedules[item.id as number] && (
+                          <button
+                            onClick={(e) => {
+                              const due = dueSchedules[item.id as number];
+                              handleOpenReviewModal(due.schedule_id, item.title, due.j_label, e);
+                            }}
+                            className="p-1 text-orange-400 hover:text-orange-300 transition-colors"
+                            title={`Révision ${dueSchedules[item.id as number].j_label} à faire`}
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                          <button
+                            onClick={(e) => raw && handleEdit(raw, e)}
+                            className="p-1 hover:text-primary transition-colors"
+                            title="Modifier"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => handleDelete(item.id as number, e)}
+                            className="p-1 hover:text-destructive transition-colors"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -348,6 +473,16 @@ export function Items() {
             : [],
         } : undefined}
       />
+
+      {reviewTarget && (
+        <ItemReviewModal
+          open={reviewModalOpen}
+          onClose={() => { setReviewModalOpen(false); setReviewTarget(null); }}
+          onSubmit={handleCompleteReview}
+          itemTitle={reviewTarget.title}
+          jLabel={reviewTarget.jLabel}
+        />
+      )}
     </div>
   );
 }

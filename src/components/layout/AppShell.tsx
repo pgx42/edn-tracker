@@ -1,5 +1,6 @@
 import { Outlet } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/toaster";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
@@ -15,6 +16,7 @@ export function AppShell() {
           </main>
         </div>
       </div>
+      <Toaster />
     </TooltipProvider>
   );
 }

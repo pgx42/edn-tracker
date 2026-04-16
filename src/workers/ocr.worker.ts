@@ -79,14 +79,16 @@ self.addEventListener("message", async (event: MessageEvent<IncomingMessage>) =>
 
       const worker = await getOrCreateWorker(lang);
 
-      // Convert ImageBitmap to canvas if needed (Tesseract.js expects HTMLImageElement | HTMLCanvasElement | ImageData, not ImageBitmap)
-      let ocrInput: HTMLCanvasElement | ImageData | string = imageData;
+      // Convert ImageBitmap to ImageData if needed (Tesseract.js expects HTMLImageElement | HTMLCanvasElement | ImageData, not ImageBitmap)
+      let ocrInput: HTMLCanvasElement | ImageData | string;
       if (imageData instanceof ImageBitmap) {
-        const canvas = new OffscreenCanvas(imageData.width, imageData.height);
-        const ctx = canvas.getContext("2d");
+        const offscreen = new OffscreenCanvas(imageData.width, imageData.height);
+        const ctx = offscreen.getContext("2d");
         if (!ctx) throw new Error("Could not get canvas context");
         ctx.drawImage(imageData, 0, 0);
-        ocrInput = canvas;
+        ocrInput = ctx.getImageData(0, 0, imageData.width, imageData.height);
+      } else {
+        ocrInput = imageData as HTMLCanvasElement | ImageData | string;
       }
 
       // Run recognition.

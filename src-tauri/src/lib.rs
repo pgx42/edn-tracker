@@ -127,6 +127,37 @@ pub fn run() {
             commands::calendar::export_session_to_apple_calendar,
             commands::calendar::import_apple_calendar_events,
             commands::calendar::delete_apple_calendar_event,
+            // Settings
+            commands::settings::export_backup,
+            commands::settings::reset_database,
+            // Méthode des J
+            commands::j_method::get_j_method_config,
+            commands::j_method::update_j_method_config,
+            commands::j_method::start_item_review,
+            commands::j_method::complete_review,
+            commands::j_method::get_due_items,
+            commands::j_method::get_item_review_history,
+            commands::j_method::get_review_calendar,
+            commands::j_method::get_item_schedule,
+            commands::j_method::reset_item_review,
+            // Annales
+            commands::annales::create_annale_session,
+            commands::annales::list_annale_sessions,
+            commands::annales::get_annale_session_detail,
+            commands::annales::update_annale_session,
+            commands::annales::delete_annale_session,
+            commands::annales::update_annale_question,
+            commands::annales::submit_annale_answer,
+            commands::annales::calculate_annale_score,
+            commands::annales::get_annale_stats,
+            commands::annales::create_annale_error,
+            commands::annales::get_annale_errors,
+            // Tracking
+            commands::tracking::get_items_tracking,
+            commands::tracking::update_item_tracking,
+            commands::tracking::get_dashboard_stats,
+            commands::tracking::get_specialty_progress,
+            commands::tracking::get_heatmap_data,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

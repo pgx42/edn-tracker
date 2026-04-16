@@ -390,6 +390,159 @@ async fn run_schema(pool: &SqlitePool) -> Result<()> {
     let _ = sqlx::query("ALTER TABLE study_sessions ADD COLUMN specialty_id TEXT")
         .execute(pool)
         .await;
+    let _ = sqlx::query("ALTER TABLE items ADD COLUMN status TEXT CHECK (status IN ('not_started', 'in_progress', 'mastered')) DEFAULT 'not_started'")
+        .execute(pool)
+        .await;
+
+    // ── Méthode des J tables ─────────────────────────────────────────────────
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS j_method_config (
+            id INTEGER PRIMARY KEY DEFAULT 1,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            intervals_json TEXT NOT NULL DEFAULT '[1, 3, 7, 14, 30, 60]',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )"
+    )
+    .execute(pool)
+    .await
+    .context("Failed to create j_method_config table")?;
+
+    sqlx::query(
+        "INSERT OR IGNORE INTO j_method_config (id, enabled, intervals_json) VALUES (1, 1, '[1, 3, 7, 14, 30, 60]')"
+    )
+    .execute(pool)
+    .await
+    .context("Failed to seed j_method_config")?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS item_reviews (
+            id TEXT PRIMARY KEY,
+            item_id INTEGER NOT NULL,
+            review_date DATE NOT NULL,
+            j_step INTEGER NOT NULL,
+            quality INTEGER CHECK (quality IN (1, 2, 3, 4, 5)),
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+        )"
+    )
+    .execute(pool)
+    .await
+    .context("Failed to create item_reviews table")?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_item_reviews_item ON item_reviews(item_id, review_date)")
+        .execute(pool)
+        .await
+        .context("Failed to create idx_item_reviews_item")?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_item_reviews_date ON item_reviews(review_date)")
+        .execute(pool)
+        .await
+        .context("Failed to create idx_item_reviews_date")?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS item_review_schedule (
+            id TEXT PRIMARY KEY,
+            item_id INTEGER NOT NULL,
+            scheduled_date DATE NOT NULL,
+            j_step INTEGER NOT NULL,
+            j_label TEXT NOT NULL DEFAULT '',
+            completed INTEGER NOT NULL DEFAULT 0,
+            completed_at TIMESTAMP,
+            FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+        )"
+    )
+    .execute(pool)
+    .await
+    .context("Failed to create item_review_schedule table")?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_review_schedule_date ON item_review_schedule(scheduled_date, completed)")
+        .execute(pool)
+        .await
+        .context("Failed to create idx_review_schedule_date")?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_review_schedule_item ON item_review_schedule(item_id)")
+        .execute(pool)
+        .await
+        .context("Failed to create idx_review_schedule_item")?;
+
+    // ── Annales tables ───────────────────────────────────────────────────────
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS annale_sessions (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            year INTEGER NOT NULL,
+            specialty_id TEXT,
+            pdf_document_id TEXT,
+            total_questions INTEGER DEFAULT 0,
+            score REAL,
+            started_at TIMESTAMP,
+            completed_at TIMESTAMP,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (specialty_id) REFERENCES specialties(id) ON DELETE SET NULL,
+            FOREIGN KEY (pdf_document_id) REFERENCES pdf_documents(id) ON DELETE SET NULL
+        )"
+    )
+    .execute(pool)
+    .await
+    .context("Failed to create annale_sessions table")?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_annale_sessions_year ON annale_sessions(year)")
+        .execute(pool).await.context("idx_annale_sessions_year")?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_annale_sessions_specialty ON annale_sessions(specialty_id)")
+        .execute(pool).await.context("idx_annale_sessions_specialty")?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS annale_questions (
+            id TEXT PRIMARY KEY,
+            annale_session_id TEXT NOT NULL,
+            question_number INTEGER NOT NULL,
+            item_id INTEGER,
+            question_text TEXT,
+            correct_answer TEXT,
+            points REAL DEFAULT 1.0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (annale_session_id) REFERENCES annale_sessions(id) ON DELETE CASCADE,
+            FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE SET NULL,
+            UNIQUE(annale_session_id, question_number)
+        )"
+    )
+    .execute(pool)
+    .await
+    .context("Failed to create annale_questions table")?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_annale_questions_session ON annale_questions(annale_session_id)")
+        .execute(pool).await.context("idx_annale_questions_session")?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS annale_answers (
+            id TEXT PRIMARY KEY,
+            annale_question_id TEXT NOT NULL,
+            user_answer TEXT,
+            is_correct INTEGER,
+            partial_score REAL,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (annale_question_id) REFERENCES annale_questions(id) ON DELETE CASCADE
+        )"
+    )
+    .execute(pool)
+    .await
+    .context("Failed to create annale_answers table")?;
+
+    // Migration: add annale_session_id to errors table
+    let _ = sqlx::query("ALTER TABLE errors ADD COLUMN annale_session_id TEXT REFERENCES annale_sessions(id) ON DELETE SET NULL")
+        .execute(pool)
+        .await;
+
+    // Phase 4: Item tracking columns
+    let _ = sqlx::query("ALTER TABLE items ADD COLUMN college_lu INTEGER NOT NULL DEFAULT 0")
+        .execute(pool)
+        .await;
+    let _ = sqlx::query("ALTER TABLE items ADD COLUMN fiche_faite INTEGER NOT NULL DEFAULT 0")
+        .execute(pool)
+        .await;
 
     // Local Anki scheduler table (offline study)
     sqlx::query(
