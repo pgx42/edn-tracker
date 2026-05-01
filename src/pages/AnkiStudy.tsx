@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import {
   ChevronDown, ChevronRight, Loader2,
@@ -216,18 +217,19 @@ type View = "select" | "study" | "done";
 
 // ─── Top nav bar ──────────────────────────────────────────────────────────────
 
-function AnkiTopNav({ onHome, onAdd, onStats, syncing, onSync }: {
+function AnkiTopNav({ onHome, onAdd, onStats, syncing, onSync, onBrowse }: {
   onHome: () => void;
   onAdd?: () => void;
   onStats?: () => void;
   syncing?: boolean;
   onSync?: () => void;
+  onBrowse?: () => void;
 }) {
   return (
     <div className="flex items-center justify-center gap-8 py-3 border-b border-white/[.06] shrink-0">
       <button onClick={onHome} className="text-sm font-medium text-zinc-300 hover:text-white transition-colors">Paquets</button>
       {onAdd && <button onClick={onAdd} className="text-sm font-medium text-zinc-300 hover:text-white transition-colors">Ajouter</button>}
-      <button className="text-sm font-medium text-zinc-300 hover:text-white transition-colors">Parcourir</button>
+      <button onClick={onBrowse} className="text-sm font-medium text-zinc-300 hover:text-white transition-colors">Parcourir</button>
       <button onClick={onStats} className="text-sm font-medium text-zinc-300 hover:text-white transition-colors">Statistiques</button>
       {onSync && (
         <button onClick={onSync} className="text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1">
@@ -242,11 +244,12 @@ function AnkiTopNav({ onHome, onAdd, onStats, syncing, onSync }: {
 // ─── Deck overview (Anki home screen style) ───────────────────────────────────
 
 function DeckOverview({
-  decks, onStudy, onHome,
+  decks, onStudy, onHome, onBrowse,
 }: {
   decks: AnkiDeck[];
   onStudy: (deckName: string | null) => void;
   onHome: () => void;
+  onBrowse?: () => void;
 }) {
   // Keyed by deck_id (string) — more reliable than name matching
   const [deckStats, setDeckStats] = useState<Map<string, DeckReviewStats>>(new Map());
@@ -303,6 +306,7 @@ function DeckOverview({
         onHome={onHome}
         onAdd={() => {}}
         onSync={() => {}}
+        onBrowse={onBrowse}
       />
 
       <div className="flex-1 overflow-auto py-6 px-4">
@@ -391,6 +395,7 @@ function DeckOverview({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function AnkiStudy() {
+  const navigate = useNavigate();
 
   const [decks, setDecks] = useState<AnkiDeck[]>([]);
   const [loadingDecks, setLoadingDecks] = useState(false);
@@ -556,6 +561,7 @@ export function AnkiStudy() {
         decks={decks}
         onStudy={(name) => void startSession(name)}
         onHome={() => {}}
+        onBrowse={() => navigate("/anki/parcourir")}
       />
     );
   }
@@ -566,7 +572,7 @@ export function AnkiStudy() {
     const total = sessionStats.again + sessionStats.hard + sessionStats.good + sessionStats.easy;
     return (
       <div className="flex flex-col h-full bg-background">
-        <AnkiTopNav onHome={() => setView("select")} />
+        <AnkiTopNav onHome={() => setView("select")} onBrowse={() => navigate("/anki/parcourir")} />
         <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8">
           <CheckCircle2 className="h-14 w-14 text-green-400" />
           <div className="text-center">
@@ -628,6 +634,7 @@ export function AnkiStudy() {
       onBury={buryCard}
       onNav={() => setView("select")}
       onBack={() => setView("select")}
+      onBrowse={() => navigate("/anki/parcourir")}
       answering={answering}
       intervals={intervals}
       loadingIntervals={loadingIntervals}
@@ -642,7 +649,7 @@ export function AnkiStudy() {
 
 function StudyView({
   card, rawQuestion, rawAnswer, showAnswer,
-  onShowAnswer, onAnswer, onUndo, onBury, onNav, onBack,
+  onShowAnswer, onAnswer, onUndo, onBury, onNav, onBack, onBrowse,
   answering, intervals, loadingIntervals,
   newCount, learnCount, dueCount,
 }: {
@@ -656,6 +663,7 @@ function StudyView({
   onBury: () => void;
   onNav: () => void;
   onBack: () => void;
+  onBrowse?: () => void;
   answering: boolean;
   intervals: number[];
   loadingIntervals: boolean;
@@ -710,7 +718,7 @@ function StudyView({
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Top nav */}
-      <AnkiTopNav onHome={onNav} onAdd={() => {}} />
+      <AnkiTopNav onHome={onNav} onAdd={() => {}} onBrowse={onBrowse} />
 
       {/* Card content */}
       <div className="flex-1 flex flex-col overflow-hidden">

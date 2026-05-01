@@ -21,6 +21,7 @@ import {
   EyeOff,
   MoveRight,
   BookOpen,
+  BarChart2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -188,6 +189,7 @@ export function Anki() {
   const [expandedCards, setExpandedCards] = React.useState<Set<string>>(new Set());
   const [expandedDecks, setExpandedDecks] = React.useState<Set<string>>(new Set());
   const [isSyncing, setIsSyncing] = React.useState(false);
+  const [showStats, setShowStats] = React.useState(false);
 
   const highlightedRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -382,9 +384,18 @@ export function Anki() {
                   Sync
                 </Button>
               )}
-              <Button size="sm" variant="outline" onClick={() => navigate("/anki/study")} className="gap-1.5">
+              <Button size="sm" variant="outline" onClick={() => navigate("/anki")} className="gap-1.5">
                 <BookOpen className="h-3.5 w-3.5" />
                 Réviser
+              </Button>
+              <Button
+                size="sm"
+                variant={showStats ? "secondary" : "outline"}
+                onClick={() => setShowStats((v) => !v)}
+                className="gap-1.5"
+              >
+                <BarChart2 className="h-3.5 w-3.5" />
+                Stats
               </Button>
               <Button size="sm" onClick={() => setShowCreateModal(true)} className="gap-1.5">
                 <Plus className="h-4 w-4" />
@@ -637,13 +648,15 @@ export function Anki() {
         </div>
       </div>
 
-      {/* Right panel */}
-      <div className="flex-1 hidden lg:flex flex-col overflow-hidden">
-        <AnkiDeckStatsPanel
-          selectedDeckName={deckFilter !== "all" ? (decks.find(d => d.id === deckFilter)?.name ?? null) : null}
-          ankiConnectAvailable={ankiConnectAvailable}
-        />
-      </div>
+      {/* Right panel — stats (toggled) */}
+      {showStats && (
+        <div className="flex-1 hidden lg:flex flex-col overflow-hidden border-l">
+          <AnkiDeckStatsPanel
+            selectedDeckName={deckFilter !== "all" ? (decks.find(d => d.id === deckFilter)?.name ?? null) : null}
+            ankiConnectAvailable={ankiConnectAvailable}
+          />
+        </div>
+      )}
 
       <AnkiCardCreationModal
         open={showCreateModal}
@@ -669,8 +682,9 @@ export function Anki() {
     </div>
   );
 
-  function handleCardCreated(card: AnkiNoteRecord) {
-    addCard(card);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  function handleCardCreated(_card: AnkiNoteRecord) {
+    // addCard is already called inside AnkiCardCreationModal via useAnkiStore
   }
 
   function handleDeckCreated(deck: AnkiDeck) {

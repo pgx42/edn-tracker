@@ -114,34 +114,55 @@ async fn open_anki_pool(path: &str, readonly: bool) -> Result<SqlitePool, String
         })
 }
 
-async fn find_basic_model_id(anki_pool: &SqlitePool) -> Result<i64, String> {
-    // Schema 15+: notetypes table
-    let row: Option<(i64, String)> =
-        sqlx::query_as("SELECT id, name FROM notetypes LIMIT 100")
-            .fetch_optional(anki_pool)
-            .await
-            .ok()
-            .flatten();
+/// Find a note model ID in the Anki collection by (approximate) name.
+/// `target` is the canonical English name, e.g. "Basic", "Cloze".
+async fn find_model_id(anki_pool: &SqlitePool, target: &str) -> Result<i64, String> {
+    // Build a list of accepted names for common localisations
+    let candidates: Vec<&str> = match target {
+        "Basic" => vec!["Basic", "De base", "Basique"],
+        "Basic (and reversed card)" => vec![
+            "Basic (and reversed card)",
+            "De base (et carte inversée)",
+            "Basique (et carte inversée)",
+        ],
+        "Cloze" => vec!["Cloze", "Texte à trous"],
+        other => vec![other],
+    };
 
-    if row.is_some() {
-        // notetypes table exists — query it properly
+    // Schema 15+: notetypes table
+    let has_notetypes: bool = sqlx::query_as::<_, (i64, String)>("SELECT id, name FROM notetypes LIMIT 1")
+        .fetch_optional(anki_pool)
+        .await
+        .ok()
+        .flatten()
+        .is_some();
+
+    if has_notetypes {
         let rows: Vec<(i64, String)> =
             sqlx::query_as("SELECT id, name FROM notetypes")
                 .fetch_all(anki_pool)
                 .await
                 .map_err(|e| format!("Failed to read notetypes: {}", e))?;
 
+        // Exact match first
         for (id, name) in &rows {
-            if name == "Basic" || name == "De base" || name.starts_with("Basic") || name == "Basique" {
+            if candidates.contains(&name.as_str()) {
                 return Ok(*id);
             }
         }
+        // Prefix match (e.g. "Basic (optional reversed card)" variants)
+        for (id, name) in &rows {
+            if candidates.iter().any(|c| name.starts_with(c) || c.starts_with(name.as_str())) {
+                return Ok(*id);
+            }
+        }
+        // Fallback to first model
         if let Some((id, _)) = rows.first() {
             return Ok(*id);
         }
     }
 
-    // Schema < 15: fallback to col.models JSON
+    // Schema < 15: col.models JSON
     let row: Option<(String,)> = sqlx::query_as("SELECT models FROM col LIMIT 1")
         .fetch_optional(anki_pool)
         .await
@@ -158,7 +179,7 @@ async fn find_basic_model_id(anki_pool: &SqlitePool) -> Result<i64, String> {
     if let Some(obj) = models.as_object() {
         for (id_str, model) in obj.iter() {
             let name = model["name"].as_str().unwrap_or("");
-            if name == "Basic" || name == "De base" || name.starts_with("Basic") || name == "Basique" {
+            if candidates.contains(&name) {
                 if let Ok(id) = id_str.parse::<i64>() {
                     return Ok(id);
                 }
@@ -171,7 +192,7 @@ async fn find_basic_model_id(anki_pool: &SqlitePool) -> Result<i64, String> {
         }
     }
 
-    Err("No model found in Anki collection".to_string())
+    Err(format!("Model '{}' not found in Anki collection", target))
 }
 
 fn compute_csum(sfld: &str) -> u32 {
@@ -561,13 +582,21 @@ pub async fn anki_sync_notes(
 /// Always writes to local anki_notes table.
 #[tauri::command]
 pub async fn create_anki_card(
-    front: String,
-    back: String,
+    question: String,
+    answer: String,
     deck_id: String,
+    note_type: Option<String>,
+    extra_field: Option<String>,
+    source_pdf_ref: Option<String>,
     tags: Option<String>,
     source_anchor_id: Option<String>,
     db: State<'_, DbPool>,
 ) -> Result<AnkiNoteRecord, String> {
+    let resolved_note_type = note_type.as_deref().unwrap_or("Basic");
+
+    // Image Occlusion Enhanced requires AnkiConnect — cannot write directly to SQLite
+    let requires_ankiconnect = resolved_note_type == "Image Occlusion Enhanced";
+
     // Look up deck name for AnkiConnect (which needs the name, not the numeric ID)
     let deck_name: Option<String> = sqlx::query_as::<_, (String,)>(
         "SELECT name FROM anki_decks WHERE id = ?",
@@ -603,10 +632,6 @@ pub async fn create_anki_card(
             allow_duplicate: bool,
         }
 
-        let mut fields = std::collections::HashMap::new();
-        fields.insert("Front".to_string(), front.clone());
-        fields.insert("Back".to_string(), back.clone());
-
         let tag_list: Vec<String> = {
             let mut v: Vec<String> = tags_str.split_whitespace().map(String::from).collect();
             if !v.contains(&"edn-tracker".to_string()) {
@@ -615,10 +640,44 @@ pub async fn create_anki_card(
             v
         };
 
+        // Build fields map based on note type
+        let mut fields = std::collections::HashMap::new();
+        match resolved_note_type {
+            "Cloze" => {
+                fields.insert("Text".to_string(), question.clone());
+                if !answer.is_empty() {
+                    fields.insert("Back Extra".to_string(), answer.clone());
+                }
+            }
+            "Image Occlusion Enhanced" => {
+                // question should already be `<img src="filename">` set by frontend after storeMediaFile
+                fields.insert("Image".to_string(), question.clone());
+                if !answer.is_empty() {
+                    fields.insert("Header".to_string(), answer.clone());
+                }
+                if let Some(ref ef) = extra_field {
+                    if !ef.is_empty() {
+                        fields.insert("Back Extra".to_string(), ef.clone());
+                    }
+                }
+            }
+            _ => {
+                // Basic and Basic (and reversed card)
+                fields.insert("Front".to_string(), question.clone());
+                fields.insert("Back".to_string(), answer.clone());
+                if let Some(ref ef) = extra_field {
+                    if !ef.is_empty() {
+                        // Some Basic templates have an "Extra" field
+                        fields.insert("Extra".to_string(), ef.clone());
+                    }
+                }
+            }
+        }
+
         let params = AddNoteParams {
             note: AddNote {
                 deck_name: name.clone(),
-                model_name: "Basic".to_string(),
+                model_name: resolved_note_type.to_string(),
                 fields,
                 tags: tag_list,
                 options: AddNoteOptions { allow_duplicate: false },
@@ -629,14 +688,20 @@ pub async fn create_anki_card(
             Ok(v) => {
                 anki_note_id = v.as_i64();
             }
-            Err(_) => {
-                // AnkiConnect failed — fall through to direct SQLite write
+            Err(e) => {
+                if requires_ankiconnect {
+                    return Err(format!(
+                        "Image Occlusion Enhanced nécessite Anki ouvert avec AnkiConnect : {}",
+                        e
+                    ));
+                }
+                // Other types fall through to direct SQLite write
             }
         }
     }
 
     // ── 2. Fall back to direct SQLite write (if AnkiConnect unavailable) ─────
-    if anki_note_id.is_none() {
+    if anki_note_id.is_none() && !requires_ankiconnect {
         let path = match get_collection_path(db.inner()).await {
             Some(p) => p,
             None => {
@@ -649,7 +714,7 @@ pub async fn create_anki_card(
             .map_err(|_| format!("Invalid deck_id: {}", deck_id))?;
 
         let anki_pool = open_anki_pool(&path, false).await?;
-        let model_id = find_basic_model_id(&anki_pool).await?;
+        let model_id = find_model_id(&anki_pool, resolved_note_type).await?;
 
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -658,8 +723,9 @@ pub async fn create_anki_card(
 
         let note_id = now_ms;
         let card_id = now_ms + 1;
-        let flds = format!("{}\x1f{}", front, back);
-        let csum = compute_csum(&front) as i64;
+        // For Cloze the first field is "Text"; for Basic it's "Front"
+        let flds = format!("{}\x1f{}", question, answer);
+        let csum = compute_csum(&question) as i64;
         let guid = random_guid();
 
         sqlx::query(
@@ -672,7 +738,7 @@ pub async fn create_anki_card(
         .bind(now_ms / 1000)
         .bind(&tags_str)
         .bind(&flds)
-        .bind(&front)
+        .bind(&question)
         .bind(csum)
         .execute(&anki_pool)
         .await
@@ -698,13 +764,16 @@ pub async fn create_anki_card(
     let local_id = uuid::Uuid::new_v4().to_string();
 
     sqlx::query(
-        "INSERT INTO anki_notes (id, deck_id, note_type, question, answer, source_anchor_id, tags, anki_note_id, created_at, anki_created_at)
-         VALUES (?, ?, 'Basic', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        "INSERT INTO anki_notes (id, deck_id, note_type, question, answer, extra_field, source_pdf_ref, source_anchor_id, tags, anki_note_id, created_at, anki_created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
     )
     .bind(&local_id)
     .bind(&deck_id)
-    .bind(&front)
-    .bind(&back)
+    .bind(resolved_note_type)
+    .bind(&question)
+    .bind(&answer)
+    .bind(&extra_field)
+    .bind(&source_pdf_ref)
     .bind(&source_anchor_id)
     .bind(&tags)
     .bind(anki_note_id)
@@ -716,10 +785,10 @@ pub async fn create_anki_card(
         id: local_id,
         deck_id,
         deck_name,
-        note_type: Some("Basic".to_string()),
-        question: front,
-        answer: back,
-        extra_field: None,
+        note_type: Some(resolved_note_type.to_string()),
+        question,
+        answer,
+        extra_field,
         source_anchor_id,
         tags,
         anki_note_id,

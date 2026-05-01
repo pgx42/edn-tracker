@@ -99,6 +99,29 @@ pub async fn anki_get_media_file(
     Ok(format!("data:{mime};base64,{}", b64_encode(&bytes)))
 }
 
+/// Store a media file in Anki's collection via AnkiConnect `storeMediaFile`.
+/// `data` must be a base64-encoded string (without data URL prefix).
+/// Returns the filename as stored by Anki (may differ if a file with the same name already exists).
+#[tauri::command]
+pub async fn store_anki_media(filename: String, data: String) -> Result<String, String> {
+    use super::anki::ankiconnect_invoke;
+
+    #[derive(serde::Serialize)]
+    struct Params {
+        filename: String,
+        data: String,
+    }
+
+    let stored: String = ankiconnect_invoke(
+        "storeMediaFile",
+        Params { filename, data },
+    )
+    .await
+    .map_err(|e| format!("AnkiConnect storeMediaFile failed (Anki doit être ouvert) : {e}"))?;
+
+    Ok(stored)
+}
+
 /// Return the absolute path to the collection.media folder (for diagnostics).
 #[tauri::command]
 pub async fn anki_get_media_dir(db: State<'_, DbPool>) -> Result<String, String> {

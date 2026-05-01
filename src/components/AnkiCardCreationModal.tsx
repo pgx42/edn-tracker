@@ -1,6 +1,7 @@
 import * as React from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Plus } from "lucide-react";
+import DOMPurify from "dompurify";
+import { Plus, X, Image as ImageIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -32,22 +33,161 @@ const NOTE_TYPES = [
   { id: "Basic", label: "Basique (Recto/Verso)" },
   { id: "Basic (and reversed card)", label: "Basique + inversé" },
   { id: "Cloze", label: "Texte à trous" },
+  { id: "Image Occlusion Enhanced", label: "Image Occlusion" },
 ];
 
-/**
- * Lightweight sanitizer for user-supplied HTML preview.
- * Strips <script>, <style>, <iframe> tags and inline event handlers.
- * Content comes exclusively from the user's own local input — this is a
- * defense-in-depth measure, not a trust boundary.
- */
-function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<iframe[\s\S]*?>/gi, "")
-    .replace(/\son\w+\s*=\s*["'][^"']*["']/gi, "")
-    .replace(/\son\w+\s*=\s*[^\s>]*/gi, "");
+// ─── Image Occlusion rect drawing ────────────────────────────────────────────
+
+interface OcclusionRect {
+  id: number;
+  x: number; // 0-1 (relative to image dimensions)
+  y: number;
+  w: number;
+  h: number;
 }
+
+const OCCLUSION_COLORS = [
+  "#3b82f6", "#ef4444", "#22c55e", "#f59e0b",
+  "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16",
+];
+
+interface OcclusionCanvasProps {
+  imageUrl: string;
+  rects: OcclusionRect[];
+  onRectsChange: (rects: OcclusionRect[]) => void;
+}
+
+function OcclusionCanvas({ imageUrl, rects, onRectsChange }: OcclusionCanvasProps) {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [drawing, setDrawing] = React.useState<{
+    startX: number; startY: number; currentX: number; currentY: number;
+  } | null>(null);
+  const nextId = React.useRef(rects.length + 1);
+
+  const getRelativePos = (e: React.MouseEvent) => {
+    const rect = containerRef.current!.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
+      y: Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)),
+    };
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const { x, y } = getRelativePos(e);
+    setDrawing({ startX: x, startY: y, currentX: x, currentY: y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!drawing) return;
+    const { x, y } = getRelativePos(e);
+    setDrawing((d) => d ? { ...d, currentX: x, currentY: y } : null);
+  };
+
+  const handleMouseUp = () => {
+    if (!drawing) return;
+    const x = Math.min(drawing.startX, drawing.currentX);
+    const y = Math.min(drawing.startY, drawing.currentY);
+    const w = Math.abs(drawing.currentX - drawing.startX);
+    const h = Math.abs(drawing.currentY - drawing.startY);
+    if (w > 0.01 && h > 0.01) {
+      const id = nextId.current++;
+      onRectsChange([...rects, { id, x, y, w, h }]);
+    }
+    setDrawing(null);
+  };
+
+  const removeRect = (id: number) => {
+    onRectsChange(rects.filter((r) => r.id !== id));
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative select-none cursor-crosshair overflow-hidden rounded-md border"
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={() => setDrawing(null)}
+    >
+      <img src={imageUrl} alt="occlusion base" className="block w-full" draggable={false} />
+
+      {rects.map((r, i) => {
+        const color = OCCLUSION_COLORS[i % OCCLUSION_COLORS.length];
+        return (
+          <div
+            key={r.id}
+            style={{
+              position: "absolute",
+              left: `${r.x * 100}%`,
+              top: `${r.y * 100}%`,
+              width: `${r.w * 100}%`,
+              height: `${r.h * 100}%`,
+              background: `${color}99`,
+              border: `2px solid ${color}`,
+              borderRadius: "3px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "12px",
+              fontWeight: 700,
+              color: "#fff",
+              pointerEvents: "all",
+            }}
+          >
+            <span style={{ textShadow: "0 1px 2px #0008", userSelect: "none" }}>{i + 1}</span>
+            <button
+              type="button"
+              onMouseDown={(e) => { e.stopPropagation(); removeRect(r.id); }}
+              style={{
+                position: "absolute",
+                top: "-8px",
+                right: "-8px",
+                width: "16px",
+                height: "16px",
+                background: "#1e293b",
+                border: `1px solid ${color}`,
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              <X style={{ width: "10px", height: "10px", color: "#fff" }} />
+            </button>
+          </div>
+        );
+      })}
+
+      {drawing && (() => {
+        const x = Math.min(drawing.startX, drawing.currentX);
+        const y = Math.min(drawing.startY, drawing.currentY);
+        const w = Math.abs(drawing.currentX - drawing.startX);
+        const h = Math.abs(drawing.currentY - drawing.startY);
+        const color = OCCLUSION_COLORS[rects.length % OCCLUSION_COLORS.length];
+        return (
+          <div
+            style={{
+              position: "absolute",
+              left: `${x * 100}%`,
+              top: `${y * 100}%`,
+              width: `${w * 100}%`,
+              height: `${h * 100}%`,
+              background: `${color}66`,
+              border: `2px dashed ${color}`,
+              borderRadius: "3px",
+              pointerEvents: "none",
+            }}
+          />
+        );
+      })()}
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export function AnkiCardCreationModal({
   open,
@@ -72,18 +212,23 @@ export function AnkiCardCreationModal({
   const [decks, setDecks] = React.useState<AnkiDeck[]>(propDecks);
   const [isLoadingDecks, setIsLoadingDecks] = React.useState(false);
 
-  // Inline deck creation
   const [showNewDeck, setShowNewDeck] = React.useState(false);
   const [newDeckName, setNewDeckName] = React.useState("");
   const [isCreatingDeck, setIsCreatingDeck] = React.useState(false);
 
+  // Image Occlusion state
+  const [occlusionImageUrl, setOcclusionImageUrl] = React.useState<string | null>(null);
+  const [occlusionImageBase64, setOcclusionImageBase64] = React.useState<string | null>(null);
+  const [occlusionImageFilename, setOcclusionImageFilename] = React.useState<string | null>(null);
+  const [occlusionRects, setOcclusionRects] = React.useState<OcclusionRect[]>([]);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
   const formRef = React.useRef<HTMLFormElement>(null);
 
-  // Derived state
   const isCloze = noteType === "Cloze";
+  const isImageOcclusion = noteType === "Image Occlusion Enhanced";
   const questionLabel = isCloze ? "Texte" : "Question";
 
-  // Collect existing tags from store
   const existingTags = React.useMemo(() => {
     const tagSet = new Set<string>();
     for (const card of cards) {
@@ -94,12 +239,8 @@ export function AnkiCardCreationModal({
     return Array.from(tagSet).sort();
   }, [cards]);
 
-  // Sync propDecks changes
-  React.useEffect(() => {
-    setDecks(propDecks);
-  }, [propDecks]);
+  React.useEffect(() => { setDecks(propDecks); }, [propDecks]);
 
-  // Auto-load decks if none provided
   React.useEffect(() => {
     if (open && propDecks.length === 0) {
       setIsLoadingDecks(true);
@@ -110,7 +251,6 @@ export function AnkiCardCreationModal({
     }
   }, [open, propDecks.length]);
 
-  // Pre-fill from context
   React.useEffect(() => {
     if (open) {
       setQuestion(context?.prefillQuestion ?? "");
@@ -122,17 +262,19 @@ export function AnkiCardCreationModal({
       setError(null);
       setShowNewDeck(false);
       setNewDeckName("");
+      setOcclusionImageUrl(null);
+      setOcclusionImageBase64(null);
+      setOcclusionImageFilename(null);
+      setOcclusionRects([]);
     }
   }, [open, context]);
 
-  // Auto-select first deck if none selected
   React.useEffect(() => {
     if (decks.length > 0 && !deckId) {
       setDeckId(decks[0].id);
     }
   }, [decks, deckId]);
 
-  // Keyboard shortcuts: Cmd/Ctrl+Enter to submit
   React.useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -170,11 +312,7 @@ export function AnkiCardCreationModal({
     const clozeNum = (question.match(/\{\{c(\d+)::/g) ?? []).length + 1;
     const prefix = `{{c${clozeNum}::`;
     const newText =
-      question.substring(0, start) +
-      prefix +
-      selected +
-      "}}" +
-      question.substring(end);
+      question.substring(0, start) + prefix + selected + "}}" + question.substring(end);
     setQuestion(newText);
     requestAnimationFrame(() => {
       textarea.focus();
@@ -190,21 +328,64 @@ export function AnkiCardCreationModal({
     }
   };
 
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      const base64 = result.split(",")[1];
+      setOcclusionImageBase64(base64);
+      setOcclusionImageFilename(file.name);
+      setOcclusionRects([]);
+      setOcclusionImageUrl(URL.createObjectURL(file));
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!question.trim() || (!isCloze && !answer.trim()) || !deckId) return;
+    if (!deckId) return;
+
+    if (isImageOcclusion) {
+      if (!occlusionImageBase64 || !occlusionImageFilename) {
+        setError("Veuillez choisir une image.");
+        return;
+      }
+      if (occlusionRects.length === 0) {
+        setError("Dessinez au moins une zone d'occlusion sur l'image.");
+        return;
+      }
+    } else if (!question.trim() || (!isCloze && !answer.trim())) {
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
+
     try {
+      let finalQuestion = question.trim();
+      let finalExtra = extra.trim() || null;
+
+      if (isImageOcclusion) {
+        const storedFilename = await invoke<string>("store_anki_media", {
+          filename: occlusionImageFilename,
+          data: occlusionImageBase64,
+        });
+        finalQuestion = `<img src="${storedFilename}">`;
+        finalExtra = JSON.stringify(occlusionRects);
+      }
+
       const card = await invoke<AnkiNoteRecord>("create_anki_card", {
-        deck_id: deckId,
-        question: question.trim(),
+        question: finalQuestion,
         answer: answer.trim(),
-        extra_field: extra.trim() || null,
+        deck_id: deckId,
+        note_type: noteType,
+        extra_field: finalExtra,
+        source_pdf_ref: context?.sourcePdfTitle ?? null,
         tags: tags.trim() || null,
         source_anchor_id: context?.sourceAnchorId ?? null,
-        source_pdf_ref: context?.sourcePdfTitle ?? null,
-        note_type: noteType,
       });
       addCard(card);
       onCardCreated?.(card);
@@ -217,10 +398,17 @@ export function AnkiCardCreationModal({
   };
 
   const isSubmitDisabled =
-    !question.trim() ||
-    (!isCloze && !answer.trim()) ||
     !deckId ||
-    isSubmitting;
+    isSubmitting ||
+    (isImageOcclusion
+      ? !occlusionImageBase64 || occlusionRects.length === 0
+      : !question.trim() || (!isCloze && !answer.trim()));
+
+  const safeHtml = (raw: string) =>
+    DOMPurify.sanitize(raw, {
+      ALLOWED_TAGS: ["b", "i", "em", "strong", "u", "s", "p", "br", "ul", "ol", "li", "code", "pre", "span", "div"],
+      ALLOWED_ATTR: ["class", "style"],
+    } as Parameters<typeof DOMPurify.sanitize>[1]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -237,113 +425,193 @@ export function AnkiCardCreationModal({
           </div>
         )}
 
-        {/* Edition / Preview toggle */}
-        <div className="flex gap-1 mt-2 border-b border-border pb-2">
-          <button
-            type="button"
-            onClick={() => setPreviewMode(false)}
-            className={`text-xs px-3 py-1 rounded transition-colors ${
-              !previewMode
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Édition
-          </button>
-          <button
-            type="button"
-            onClick={() => setPreviewMode(true)}
-            className={`text-xs px-3 py-1 rounded transition-colors ${
-              previewMode
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Aperçu
-          </button>
+        {/* Note type selector */}
+        <div className="space-y-1.5 mt-2">
+          <Label>Type de carte</Label>
+          <Select value={noteType} onValueChange={setNoteType}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {NOTE_TYPES.map((nt) => (
+                <SelectItem key={nt.id} value={nt.id}>
+                  {nt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4 mt-2">
-          {/* Question / Texte field */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="anki-question">{questionLabel} *</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className={`h-6 text-xs font-mono ${isCloze ? "text-primary border border-primary/40" : ""}`}
-                onClick={handleClozeWrap}
-                title="Entourer la sélection avec la syntaxe cloze"
-              >
-                {"{{"}<span>c1::</span>{"}}"}
-              </Button>
-            </div>
-            {previewMode ? (
-              <div
-                className="border rounded-md p-3 min-h-[80px] text-sm prose prose-invert max-w-none"
-                // Content is user-supplied local data (SQLite). Sanitized above.
-                // eslint-disable-next-line react/no-danger
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(question) }}
-              />
-            ) : (
-              <Textarea
-                id="anki-question"
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                placeholder={
-                  isCloze
-                    ? "Texte avec {{c1::mots à cacher}}..."
-                    : "Question de la carte..."
-                }
-                rows={3}
-                required
-              />
-            )}
+        {/* Edition / Preview toggle — text-based cards only */}
+        {!isImageOcclusion && (
+          <div className="flex gap-1 mt-2 border-b border-border pb-2">
+            <button
+              type="button"
+              onClick={() => setPreviewMode(false)}
+              className={`text-xs px-3 py-1 rounded transition-colors ${
+                !previewMode
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Édition
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewMode(true)}
+              className={`text-xs px-3 py-1 rounded transition-colors ${
+                previewMode
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Aperçu
+            </button>
           </div>
+        )}
 
-          {/* Answer field — hidden for Cloze */}
-          {!isCloze && (
-            <div className="space-y-1.5">
-              <Label htmlFor="anki-answer">Réponse *</Label>
-              {previewMode ? (
-                <div
-                  className="border rounded-md p-3 min-h-[80px] text-sm prose prose-invert max-w-none"
-                  // eslint-disable-next-line react/no-danger
-                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(answer) }}
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4 mt-2">
+
+          {/* ── Image Occlusion Enhanced ──────────────────────────────── */}
+          {isImageOcclusion && (
+            <>
+              <div className="space-y-1.5">
+                <Label>Image *</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageFileChange}
                 />
-              ) : (
-                <Textarea
-                  id="anki-answer"
+                {occlusionImageUrl ? (
+                  <div className="space-y-2">
+                    <OcclusionCanvas
+                      imageUrl={occlusionImageUrl}
+                      rects={occlusionRects}
+                      onRectsChange={setOcclusionRects}
+                    />
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-muted-foreground flex-1">
+                        {occlusionRects.length === 0
+                          ? "Cliquez et glissez sur l'image pour masquer des zones."
+                          : `${occlusionRects.length} zone${occlusionRects.length > 1 ? "s" : ""} masquée${occlusionRects.length > 1 ? "s" : ""}`}
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        Changer l'image
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex flex-col items-center justify-center gap-2 w-full h-32 border-2 border-dashed border-border rounded-md text-muted-foreground hover:border-primary hover:text-foreground transition-colors"
+                  >
+                    <ImageIcon className="h-8 w-8 opacity-40" />
+                    <span className="text-sm">Cliquer pour choisir une image</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="anki-header">En-tête (optionnel)</Label>
+                <Input
+                  id="anki-header"
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
-                  placeholder="Réponse de la carte..."
-                  rows={3}
-                  required
+                  placeholder="Contexte de la carte (ex : Anatomie du cœur)"
                 />
-              )}
-            </div>
+              </div>
+            </>
           )}
 
-          {/* Extra field */}
-          <div className="space-y-1.5">
-            <Label htmlFor="anki-extra">Champ supplémentaire</Label>
-            {previewMode ? (
-              <div
-                className="border rounded-md p-3 min-h-[48px] text-sm prose prose-invert max-w-none text-muted-foreground"
-                // eslint-disable-next-line react/no-danger
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(extra) || "<em>Vide</em>" }}
-              />
-            ) : (
-              <Textarea
-                id="anki-extra"
-                value={extra}
-                onChange={(e) => setExtra(e.target.value)}
-                placeholder="Informations complémentaires (optionnel)..."
-                rows={2}
-              />
-            )}
-          </div>
+          {/* ── Text-based cards ─────────────────────────────────────── */}
+          {!isImageOcclusion && (
+            <>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="anki-question">{questionLabel} *</Label>
+                  {isCloze && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-xs font-mono text-primary border border-primary/40"
+                      onClick={handleClozeWrap}
+                      title="Entourer la sélection avec la syntaxe cloze"
+                    >
+                      {"{{"}<span>c1::</span>{"}}"}
+                    </Button>
+                  )}
+                </div>
+                {previewMode ? (
+                  <div
+                    className="border rounded-md p-3 min-h-[80px] text-sm prose prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: safeHtml(question) }}
+                  />
+                ) : (
+                  <Textarea
+                    id="anki-question"
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    placeholder={
+                      isCloze
+                        ? "Texte avec {{c1::mots à cacher}}..."
+                        : "Question de la carte..."
+                    }
+                    rows={3}
+                    required
+                  />
+                )}
+              </div>
+
+              {!isCloze && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="anki-answer">Réponse *</Label>
+                  {previewMode ? (
+                    <div
+                      className="border rounded-md p-3 min-h-[80px] text-sm prose prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{ __html: safeHtml(answer) }}
+                    />
+                  ) : (
+                    <Textarea
+                      id="anki-answer"
+                      value={answer}
+                      onChange={(e) => setAnswer(e.target.value)}
+                      placeholder="Réponse de la carte..."
+                      rows={3}
+                      required
+                    />
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label htmlFor="anki-extra">Champ supplémentaire</Label>
+                {previewMode ? (
+                  <div
+                    className="border rounded-md p-3 min-h-[48px] text-sm prose prose-invert max-w-none text-muted-foreground"
+                    dangerouslySetInnerHTML={{ __html: safeHtml(extra) || "<em>Vide</em>" }}
+                  />
+                ) : (
+                  <Textarea
+                    id="anki-extra"
+                    value={extra}
+                    onChange={(e) => setExtra(e.target.value)}
+                    placeholder="Informations complémentaires (optionnel)..."
+                    rows={2}
+                  />
+                )}
+              </div>
+            </>
+          )}
 
           {/* Deck selector */}
           <div className="space-y-1.5">
@@ -361,20 +629,10 @@ export function AnkiCardCreationModal({
                     if (e.key === "Escape") { setShowNewDeck(false); setNewDeckName(""); }
                   }}
                 />
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleCreateDeck}
-                  disabled={!newDeckName.trim() || isCreatingDeck}
-                >
+                <Button type="button" size="sm" onClick={handleCreateDeck} disabled={!newDeckName.trim() || isCreatingDeck}>
                   {isCreatingDeck ? "..." : "Créer"}
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => { setShowNewDeck(false); setNewDeckName(""); }}
-                >
+                <Button type="button" size="sm" variant="outline" onClick={() => { setShowNewDeck(false); setNewDeckName(""); }}>
                   Annuler
                 </Button>
               </div>
@@ -392,34 +650,11 @@ export function AnkiCardCreationModal({
                     ))}
                   </SelectContent>
                 </Select>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  onClick={() => setShowNewDeck(true)}
-                  title="Nouveau paquet"
-                >
+                <Button type="button" size="icon" variant="outline" onClick={() => setShowNewDeck(true)} title="Nouveau paquet">
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
             )}
-          </div>
-
-          {/* Note type selector */}
-          <div className="space-y-1.5">
-            <Label>Type de carte</Label>
-            <Select value={noteType} onValueChange={setNoteType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {NOTE_TYPES.map((nt) => (
-                  <SelectItem key={nt.id} value={nt.id}>
-                    {nt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Tags */}
@@ -447,9 +682,13 @@ export function AnkiCardCreationModal({
             )}
           </div>
 
-          {error && (
-            <p className="text-sm text-red-400">{error}</p>
+          {isImageOcclusion && (
+            <p className="text-xs text-amber-400/80 bg-amber-400/5 border border-amber-400/20 rounded-md px-3 py-2">
+              Image Occlusion nécessite Anki ouvert avec le plugin AnkiConnect.
+            </p>
           )}
+
+          {error && <p className="text-sm text-red-400">{error}</p>}
 
           <DialogFooter>
             <p className="text-xs text-muted-foreground mr-auto self-center hidden sm:block">

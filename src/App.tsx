@@ -8,6 +8,7 @@ import { MatiereDetail } from "@/pages/MatiereDetail";
 import { Errors } from "@/pages/Errors";
 import { Diagrams } from "@/pages/Diagrams";
 import { Planning } from "@/pages/Planning";
+import { Anki } from "@/pages/Anki";
 import { AnkiStudy } from "@/pages/AnkiStudy";
 import { Settings } from "@/pages/Settings";
 
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/diagrams" element={<Diagrams />} />
           <Route path="/planning" element={<Planning />} />
           <Route path="/anki" element={<AnkiStudy />} />
+          <Route path="/anki/parcourir" element={<Anki />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>
