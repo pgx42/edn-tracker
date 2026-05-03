@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8"><title>EDN Tracker — Anki</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+html,body{height:100%;margin:0;font-family:var(--font-ui);background:var(--bg-canvas);color:var(--fg-1)}
+body{display:flex;flex-direction:column}
+header{height:48px;display:flex;align-items:center;gap:12px;padding:0 18px;border-bottom:1px solid var(--border-subtle)}
+.toggle{display:flex;background:var(--bg-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:3px}
+.toggle button{padding:5px 12px;font-size:12px;color:var(--fg-2);background:transparent;border:0;border-radius:var(--radius-xs);cursor:pointer}
+.toggle button.active{background:var(--bg-surface);color:var(--fg-1);font-weight:500;box-shadow:var(--shadow-sm)}
+
+main{flex:1;display:none;overflow:auto}
+main.active{display:flex}
+
+/* Deck list */
+.decks{padding:24px;display:flex;flex-direction:column;gap:14px;width:100%;max-width:880px;margin:0 auto}
+.deck-head{display:flex;align-items:center;gap:10px}
+.deck-head h2{font-size:20px;font-weight:600;letter-spacing:-0.01em;margin:0}
+.deck-table{background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);overflow:hidden}
+.deck-table .thead{display:grid;grid-template-columns:1fr 80px 80px 80px 100px;gap:14px;padding:10px 16px;background:var(--bg-sunken);border-bottom:1px solid var(--border-subtle);font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.deck-row{display:grid;grid-template-columns:1fr 80px 80px 80px 100px;gap:14px;padding:12px 16px;align-items:center;border-bottom:1px solid var(--border-subtle);font-size:13px}
+.deck-row:last-child{border-bottom:0}
+.deck-row .name{display:flex;align-items:center;gap:10px;font-weight:500}
+.deck-row.sub .name{padding-left:24px;color:var(--fg-2);font-weight:400}
+.deck-row .num{font-variant-numeric:tabular-nums;color:var(--fg-2)}
+.deck-row .num.new{color:var(--info-fg)}
+.deck-row .num.learn{color:var(--danger-fg)}
+.deck-row .num.due{color:var(--warning-fg)}
+.deck-row .due-strong{color:var(--fg-1);font-weight:500}
+.btn-go{height:26px;padding:0 12px;background:var(--accent);color:#fff;border:0;border-radius:var(--radius-sm);font-size:12px;font-weight:500;cursor:pointer}
+
+/* Review */
+.review{flex:1;display:flex;flex-direction:column;align-items:center;padding:24px;gap:24px}
+.review-head{display:flex;gap:18px;align-items:center;font-size:12px;color:var(--fg-3)}
+.review-head .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-weight:500;font-variant-numeric:tabular-nums}
+.review-head .pill.new{background:var(--info-bg);color:var(--info-fg)}
+.review-head .pill.learn{background:var(--danger-bg);color:var(--danger-fg)}
+.review-head .pill.due{background:var(--warning-bg);color:var(--warning-fg)}
+.card{width:100%;max-width:720px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:48px 56px;display:flex;flex-direction:column;gap:24px;min-height:380px}
+.card .q{font-size:24px;line-height:1.4;text-align:center;color:var(--fg-1);font-weight:500}
+.card hr{border:0;border-top:1px solid var(--border-subtle);margin:0}
+.card .a{font-size:18px;line-height:1.6;color:var(--fg-1)}
+.card .a strong{color:var(--accent-fg);font-weight:600}
+.card .tags{display:flex;gap:6px;margin-top:auto}
+.card .tag{font-size:11px;color:var(--fg-2);background:var(--bg-sunken);border:1px solid var(--border-subtle);padding:2px 8px;border-radius:var(--radius-xs)}
+.show-btn{padding:10px 24px;background:var(--bg-surface);border:1px solid var(--border-default);color:var(--fg-1);border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer}
+.rate-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:100%;max-width:720px}
+.rate{padding:14px 12px;border-radius:var(--radius-md);border:0;cursor:pointer;color:#fff;display:flex;flex-direction:column;align-items:center;gap:4px;font-family:var(--font-ui)}
+.rate .lbl{font-size:14px;font-weight:600}
+.rate .interval{font-size:11px;opacity:.85;font-variant-numeric:tabular-nums}
+.rate .kbd{font-size:10px;opacity:.7;font-family:var(--font-mono);margin-top:2px}
+.rate.again{background:var(--anki-again)}
+.rate.hard{background:var(--anki-hard)}
+.rate.good{background:var(--anki-good)}
+.rate.easy{background:var(--anki-easy)}
+
+.review-foot{display:flex;gap:12px;align-items:center;color:var(--fg-3);font-size:12px}
+</style></head>
+<body>
+<header>
+  <img src="../../assets/logo.svg" width="20" height="20"/>
+  <span style="font-weight:600;font-size:13px">Anki</span>
+  <div style="flex:1"></div>
+  <div class="toggle">
+    <button class="active" data-view="decks">Decks</button>
+    <button data-view="review">Révision</button>
+    <button>Stats</button>
+    <button>Browse</button>
+  </div>
+</header>
+
+<main class="active" id="decks-view">
+  <div class="decks">
+    <div class="deck-head">
+      <h2>Mes decks</h2>
+      <span class="meta" style="margin-left:auto">déjà 1 248 cartes vues cette semaine</span>
+      <button class="btn-go" style="height:30px">Importer .apkg</button>
+    </div>
+    <div class="deck-table">
+      <div class="thead"><div>Nom</div><div>Nouv.</div><div>App.</div><div>Dûes</div><div></div></div>
+      <div class="deck-row"><div class="name"><i data-lucide="folder" style="color:var(--fg-muted)"></i>EDN</div><div class="num new">12</div><div class="num learn">8</div><div class="num due-strong">42</div><div></div></div>
+      <div class="deck-row sub"><div class="name"><i data-lucide="layers" style="color:var(--fg-muted)"></i>Cardiologie</div><div class="num new">8</div><div class="num learn">3</div><div class="num due-strong">22</div><div><button class="btn-go">Étudier</button></div></div>
+      <div class="deck-row sub"><div class="name"><i data-lucide="layers" style="color:var(--fg-muted)"></i>Endocrinologie</div><div class="num new">2</div><div class="num learn">3</div><div class="num">12</div><div><button class="btn-go">Étudier</button></div></div>
+      <div class="deck-row sub"><div class="name"><i data-lucide="layers" style="color:var(--fg-muted)"></i>Neurologie</div><div class="num new">2</div><div class="num learn">2</div><div class="num">8</div><div><button class="btn-go">Étudier</button></div></div>
+      <div class="deck-row"><div class="name"><i data-lucide="folder" style="color:var(--fg-muted)"></i>Pharmacologie</div><div class="num new">0</div><div class="num">0</div><div class="num">14</div><div><button class="btn-go">Étudier</button></div></div>
+      <div class="deck-row"><div class="name"><i data-lucide="folder" style="color:var(--fg-muted)"></i>Anatomie</div><div class="num new">4</div><div class="num">1</div><div class="num">6</div><div><button class="btn-go">Étudier</button></div></div>
+    </div>
+  </div>
+</main>
+
+<main id="review-view">
+  <div class="review">
+    <div class="review-head">
+      <span>Cardiologie · item 334</span>
+      <span class="pill new"><i data-lucide="circle" style="width:8px;height:8px;fill:currentColor"></i>3 nouvelles</span>
+      <span class="pill learn"><i data-lucide="circle" style="width:8px;height:8px;fill:currentColor"></i>2 en apprentissage</span>
+      <span class="pill due"><i data-lucide="circle" style="width:8px;height:8px;fill:currentColor"></i>17 dûes</span>
+    </div>
+    <div class="card">
+      <div class="q">Quel est le délai au-delà duquel la fibrinolyse n'est plus l'option de revascularisation préférentielle dans le SCA ST+ ?</div>
+      <hr/>
+      <div class="a"><strong>12 heures.</strong><br/><br/>Au-delà de 12 h après le début de la douleur, la fibrinolyse perd son bénéfice et l'angioplastie primaire reste indiquée si une ischémie persistante est présente. Avant 12 h, le délai porte-aiguille &lt; 30 min (fibrinolyse) ou porte-ballon &lt; 90 min (angioplastie) reste l'objectif.</div>
+      <div class="tags"><span class="tag">#cardiologie</span><span class="tag">#item-334</span><span class="tag">#urgence</span><span class="tag">#délai</span></div>
+    </div>
+    <div class="rate-row">
+      <button class="rate again"><span class="lbl">Again</span><span class="interval">&lt;1 min</span><span class="kbd">1</span></button>
+      <button class="rate hard"><span class="lbl">Hard</span><span class="interval">6 min</span><span class="kbd">2</span></button>
+      <button class="rate good"><span class="lbl">Good</span><span class="interval">10 min</span><span class="kbd">3</span></button>
+      <button class="rate easy"><span class="lbl">Easy</span><span class="interval">4 j</span><span class="kbd">4</span></button>
+    </div>
+    <div class="review-foot">
+      <i data-lucide="link"></i><span>2 cartes liées</span>
+      <span style="margin-left:18px">·</span>
+      <i data-lucide="alert-triangle"></i><span>Marquer comme erreur</span>
+      <span style="margin-left:18px">·</span>
+      <i data-lucide="external-link"></i><span>Voir dans Cardio.pdf, p. 47</span>
+    </div>
+  </div>
+</main>
+
+<script>
+  lucide.createIcons({attrs:{'stroke-width':1.5,width:14,height:14}});
+  document.querySelectorAll('.toggle button[data-view]').forEach(b=>{
+    b.onclick=()=>{
+      document.querySelectorAll('.toggle button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      document.querySelectorAll('main').forEach(m=>m.classList.remove('active'));
+      document.getElementById(b.dataset.view+'-view').classList.add('active');
+    };
+  });
+</script>
+</body></html>

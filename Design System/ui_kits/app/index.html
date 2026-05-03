@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>EDN Tracker — App</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  html, body, #root { height: 100%; margin: 0; }
+  #root { display: flex; }
+</style>
+</head>
+<body data-theme="light">
+<div id="root"></div>
+<script type="text/babel" src="Shell.jsx"></script>
+<script type="text/babel" src="Views.jsx"></script>
+<script type="text/babel" src="Extras.jsx"></script>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+function App() {
+  const [active, setActive] = useState('today');
+  const [theme, setTheme] = useState('light');
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  useEffect(() => { document.body.setAttribute('data-theme', theme); }, [theme]);
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setPaletteOpen(o => !o); }
+      if (e.key === 'Escape') setPaletteOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const titles = {
+    today: { title: "Aujourd'hui", crumb: ['Travail', "Aujourd'hui"], view: <Dashboard /> },
+    library: { title: 'Bibliothèque', crumb: ['Connaissance', 'Bibliothèque'], view: <Library /> },
+    calendar: { title: 'Calendrier', crumb: ['Connaissance', 'Calendrier'], view: <Calendar /> },
+    mindmaps: { title: 'Mindmaps', crumb: ['Connaissance', 'Mindmaps'], view: <Mindmaps /> },
+    search: { title: 'Recherche', crumb: ['Connaissance', 'Recherche'], view: <SearchGraph /> },
+    anki: { title: 'Anki', crumb: ['Travail', 'Anki'], view: <PlaceholderView label="Anki — voir ui_kits/anki/" /> },
+    errors: { title: "Carnet d'erreurs", crumb: ['Travail', "Carnet"], view: <PlaceholderView label="Carnet d'erreurs — voir ui_kits/carnet_erreurs/" /> },
+  };
+  const current = titles[active] || titles.today;
+
+  return (
+    <div style={{ display: 'flex', height: '100%', width: '100%', background: 'var(--bg-canvas)', color: 'var(--fg-1)' }}>
+      <Sidebar active={active} onNavigate={setActive} theme={theme} onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')} />
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <TopBar breadcrumb={current.crumb} onOpenPalette={() => setPaletteOpen(true)} />
+        {current.view}
+      </main>
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+    </div>
+  );
+}
+
+function PlaceholderView({ label }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8, color: 'var(--fg-3)' }}>
+      <Icon name="external-link" size={20} />
+      <div style={{ fontSize: 14 }}>{label}</div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

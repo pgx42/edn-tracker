@@ -1,0 +1,48 @@
+/* Shared preview card styles. Each preview HTML file imports this + colors_and_type. */
+@import url('../colors_and_type.css');
+
+html, body {
+  background: var(--bg-canvas);
+  color: var(--fg-1);
+  margin: 0;
+  padding: 0;
+}
+
+body.preview-card {
+  width: 700px;
+  padding: 24px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.row { display: flex; gap: 12px; align-items: center; }
+.col { display: flex; flex-direction: column; gap: 8px; }
+.wrap { display: flex; gap: 8px; flex-wrap: wrap; }
+.spread { display: flex; gap: 12px; justify-content: space-between; align-items: center; }
+.grow { flex: 1; }
+
+.swatch {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.swatch-chip {
+  height: 48px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+.swatch-name { font-size: 12px; color: var(--fg-1); font-weight: 500; }
+.swatch-val  { font-size: 11px; color: var(--fg-3); font-family: var(--font-mono); }
+
+.label { font-size: 11px; color: var(--fg-3); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+
+.tile {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}

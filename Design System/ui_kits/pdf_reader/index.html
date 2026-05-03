@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8"><title>EDN Tracker — PDF</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;background:var(--bg-canvas);color:var(--fg-1);font-family:var(--font-ui)}
+header{height:48px;display:flex;align-items:center;gap:12px;padding:0 14px;border-bottom:1px solid var(--border-subtle);flex-shrink:0}
+header .title{font-size:13px;font-weight:600}
+header .meta{font-size:12px;color:var(--fg-3)}
+.toolbar{display:flex;align-items:center;gap:4px;padding:3px;background:var(--bg-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-sm)}
+.tool{width:28px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--radius-xs);background:transparent;border:0;cursor:pointer;color:var(--fg-2)}
+.tool.active{background:var(--bg-surface);color:var(--fg-1);box-shadow:var(--shadow-sm)}
+.tool[data-color="yellow"]{background:var(--hl-yellow);width:18px;height:18px;border-radius:50%}
+.tool[data-color="green"]{background:var(--hl-green);width:18px;height:18px;border-radius:50%}
+.tool[data-color="rose"]{background:var(--hl-rose);width:18px;height:18px;border-radius:50%}
+.tool[data-color="blue"]{background:var(--hl-blue);width:18px;height:18px;border-radius:50%;outline:2px solid var(--accent);outline-offset:2px}
+.tool[data-color="lavender"]{background:var(--hl-lavender);width:18px;height:18px;border-radius:50%}
+
+main{flex:1;display:grid;grid-template-columns:240px 1fr 320px;overflow:hidden}
+.left{border-right:1px solid var(--border-subtle);overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:6px}
+.left .ey{font-size:10px;font-weight:600;color:var(--fg-3);text-transform:uppercase;letter-spacing:.08em;margin:6px 0 4px}
+.thumb{display:flex;gap:8px;padding:6px;border-radius:var(--radius-sm);cursor:pointer;align-items:center}
+.thumb.active{background:var(--bg-selected)}
+.thumb .pg{width:42px;height:54px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:2px;font-size:9px;color:var(--fg-3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--font-mono)}
+.thumb .pg.hl{background:linear-gradient(180deg,#fff 30%,var(--hl-yellow) 30%,var(--hl-yellow) 36%,#fff 36%)}
+.thumb .lab{font-size:11px;color:var(--fg-2)}
+
+.center{background:var(--paper);overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:24px;gap:16px}
+.page{width:560px;background:#fff;border:1px solid var(--border-subtle);box-shadow:var(--shadow-sm);border-radius:var(--radius-xs);padding:48px 56px;font-family:'Iowan Old Style',Georgia,serif;font-size:14px;line-height:1.7;color:#1a1a1a;position:relative}
+.page .pgnum{position:absolute;bottom:14px;right:18px;font-size:10px;color:#999;font-family:var(--font-mono)}
+.page h2{font-family:var(--font-ui);font-size:18px;font-weight:600;margin:0 0 14px;color:#0f172a}
+.page p{margin:0 0 12px;color:#1a1a1a}
+.hl{padding:1px 2px;border-radius:1px}
+.hly{background:var(--hl-yellow)}
+.hlg{background:var(--hl-green)}
+.hlr{background:var(--hl-rose)}
+.hlb{background:var(--hl-blue)}
+.note-pin{display:inline-block;width:14px;height:14px;background:var(--accent);color:#fff;border-radius:50%;font-size:9px;font-weight:600;text-align:center;line-height:14px;margin-left:4px;cursor:pointer;vertical-align:middle;font-family:var(--font-ui)}
+
+.right{border-left:1px solid var(--border-subtle);overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+.tabs{display:flex;border-bottom:1px solid var(--border-subtle);margin:-16px -16px 0}
+.tab{padding:10px 14px;font-size:12px;color:var(--fg-2);border-bottom:2px solid transparent;cursor:pointer}
+.tab.active{color:var(--fg-1);border-bottom-color:var(--accent);font-weight:500}
+.annot{padding:10px 12px;border-radius:var(--radius-sm);background:var(--bg-surface);border:1px solid var(--border-subtle);display:flex;flex-direction:column;gap:6px}
+.annot .hbar{height:3px;border-radius:2px;width:32px}
+.annot .quote{font-size:12px;color:var(--fg-2);line-height:1.5;border-left:2px solid var(--border-default);padding-left:8px;font-style:italic}
+.annot .note{font-size:13px;color:var(--fg-1)}
+.annot .meta{font-size:11px;color:var(--fg-3);display:flex;gap:6px}
+.bl{display:flex;gap:8px;padding:8px;border-radius:var(--radius-sm);font-size:12px;color:var(--fg-1);background:var(--bg-surface);border:1px solid var(--border-subtle);align-items:center}
+</style></head>
+<body>
+<header>
+  <img src="../../assets/logo.svg" width="20" height="20"/>
+  <div style="display:flex;flex-direction:column"><span class="title">Cardio — ECN polycopié 2024.pdf</span><span class="meta">128 pages · 18 highlights</span></div>
+  <div style="flex:1"></div>
+  <div class="toolbar">
+    <button class="tool active" title="Curseur"><i data-lucide="mouse-pointer-2"></i></button>
+    <button class="tool" title="Sélection"><i data-lucide="square-dashed"></i></button>
+    <button class="tool" title="Surligner"><i data-lucide="highlighter"></i></button>
+    <button class="tool" title="Note"><i data-lucide="message-square"></i></button>
+    <button class="tool" title="Souligner"><i data-lucide="underline"></i></button>
+  </div>
+  <div class="toolbar">
+    <span class="tool" data-color="yellow"></span>
+    <span class="tool" data-color="green"></span>
+    <span class="tool" data-color="rose"></span>
+    <span class="tool" data-color="blue"></span>
+    <span class="tool" data-color="lavender"></span>
+  </div>
+  <button class="tool" title="Lien"><i data-lucide="link"></i></button>
+  <button class="tool" title="Carte Anki"><i data-lucide="layers"></i></button>
+</header>
+<main>
+  <aside class="left">
+    <div class="ey">Plan</div>
+    <div style="font-size:12px;color:var(--accent-fg);font-weight:500">1. Syndrome coronarien aigu</div>
+    <div style="font-size:11px;color:var(--fg-3);padding-left:10px">1.1 Définition</div>
+    <div style="font-size:11px;color:var(--fg-3);padding-left:10px">1.2 Présentation clinique</div>
+    <div style="font-size:11px;color:var(--fg-3);padding-left:10px">1.3 ECG</div>
+    <div style="font-size:11px;color:var(--fg-3);padding-left:10px">1.4 Biomarqueurs</div>
+    <div style="font-size:12px;color:var(--fg-2);font-weight:500">2. Insuffisance cardiaque</div>
+    <div class="ey">Pages</div>
+    <div class="thumb"><div class="pg">42</div><div class="lab">Présentation clinique</div></div>
+    <div class="thumb active"><div class="pg hl">43</div><div class="lab" style="color:var(--fg-1);font-weight:500">ECG du SCA</div></div>
+    <div class="thumb"><div class="pg">44</div><div class="lab">Biomarqueurs</div></div>
+    <div class="thumb"><div class="pg">45</div><div class="lab">Prise en charge</div></div>
+  </aside>
+
+  <section class="center">
+    <div class="page">
+      <h2>1.3 ECG du syndrome coronarien aigu</h2>
+      <p>Le syndrome coronarien aigu se définit par <span class="hl hly">une douleur thoracique constrictive</span> de plus de 20 minutes, souvent associée à <span class="hl hlr">une dyspnée et des sueurs profuses</span>. La présentation clinique typique du sujet jeune diffère de celle du sujet âgé ou diabétique chez qui la douleur peut être absente.<span class="note-pin">3</span></p>
+      <p>L'ECG montre typiquement <span class="hl hlg">un sus-décalage du segment ST</span> (≥ 1 mm dans les dérivations frontales, ≥ 2 mm dans les précordiales) dans <span class="hl hlb">au moins deux dérivations contiguës</span>. Cette anomalie traduit une lésion transmurale du myocarde et constitue une urgence thérapeutique absolue.</p>
+      <p>La troponine ultrasensible est <span class="hl hlr">élevée à H3</span> dans la majorité des SCA ST+, mais sa cinétique compte plus que sa valeur absolue. Un dosage à H0 et H3 (ou H1 selon le kit) permet de confirmer le diagnostic.<span class="note-pin">7</span></p>
+      <p>Les diagnostics différentiels incluent la péricardite, la dissection aortique et l'embolie pulmonaire — chacun ayant un profil ECG distinct.</p>
+      <span class="pgnum">— 43 —</span>
+    </div>
+  </section>
+
+  <aside class="right">
+    <div class="tabs">
+      <div class="tab active">Annotations <span style="margin-left:4px;font-size:10px;background:var(--bg-sunken);padding:1px 6px;border-radius:999px">8</span></div>
+      <div class="tab">Liens <span style="margin-left:4px;font-size:10px;background:var(--bg-sunken);padding:1px 6px;border-radius:999px">12</span></div>
+      <div class="tab">IA</div>
+    </div>
+    <div class="annot">
+      <div class="hbar" style="background:var(--hl-yellow)"></div>
+      <div class="quote">une douleur thoracique constrictive</div>
+      <div class="note">Caractère "barre rétrosternale", non positionnel. À distinguer de la péricardite.</div>
+      <div class="meta"><span>p. 43</span><span>·</span><span>il y a 2 j</span></div>
+    </div>
+    <div class="annot">
+      <div class="hbar" style="background:var(--hl-green)"></div>
+      <div class="quote">un sus-décalage du segment ST</div>
+      <div class="note">→ lié à <span style="color:var(--accent-fg)">erreur #4 du carnet</span></div>
+      <div class="meta"><span>p. 43</span><span>·</span><span>aujourd'hui</span></div>
+    </div>
+    <div class="annot">
+      <div class="hbar" style="background:var(--hl-rose)"></div>
+      <div class="quote">élevée à H3</div>
+      <div class="meta"><span>p. 43</span><span>·</span><span>aujourd'hui</span></div>
+    </div>
+    <div style="font-size:10px;font-weight:600;color:var(--fg-3);text-transform:uppercase;letter-spacing:.08em;margin-top:8px">Backlinks</div>
+    <div class="bl"><i data-lucide="layers" style="color:var(--fg-muted)"></i><span style="flex:1">Anki — SCA · 18 cartes</span></div>
+    <div class="bl"><i data-lucide="git-branch" style="color:var(--fg-muted)"></i><span style="flex:1">Mindmap — Conduction cardiaque</span></div>
+    <div class="bl"><i data-lucide="alert-triangle" style="color:var(--fg-muted)"></i><span style="flex:1">Erreur — ECG sus-décalage</span></div>
+  </aside>
+</main>
+<script>lucide.createIcons({attrs:{'stroke-width':1.5,width:16,height:16}});</script>
+</body></html>

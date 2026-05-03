@@ -1,0 +1,30 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_preview.css">
+<style>
+.btn { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; border-radius:var(--radius-sm); font-size:13px; font-weight:500; font-family:var(--font-ui); border:1px solid transparent; cursor:pointer; transition:background var(--dur-micro) var(--ease-out); }
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-primary:hover { background:var(--accent-hover); }
+.btn-secondary { background:var(--bg-surface); color:var(--fg-1); border-color:var(--border-default); }
+.btn-secondary:hover { background:var(--bg-sunken); }
+.btn-ghost { background:transparent; color:var(--fg-2); }
+.btn-ghost:hover { background:var(--bg-hover); }
+.btn-danger { background:var(--danger-fg); color:#fff; }
+.btn-sm { height:26px; padding:0 8px; font-size:12px; }
+.btn-lg { height:38px; padding:0 16px; font-size:14px; }
+</style>
+</head>
+<body class="preview-card">
+  <div class="row" style="gap:8px">
+    <button class="btn btn-primary">Réviser maintenant</button>
+    <button class="btn btn-secondary">Plus tard</button>
+    <button class="btn btn-ghost">Annuler</button>
+    <button class="btn btn-danger">Supprimer</button>
+  </div>
+  <div class="row" style="gap:8px;align-items:center">
+    <button class="btn btn-primary btn-sm">Petit</button>
+    <button class="btn btn-primary">Moyen</button>
+    <button class="btn btn-primary btn-lg">Grand</button>
+    <button class="btn btn-secondary" disabled style="opacity:.4;cursor:not-allowed">Désactivé</button>
+    <button class="btn btn-secondary" style="outline:2px solid var(--border-focus);outline-offset:2px">Focus</button>
+  </div>
+</body></html>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 64" fill="none">
+  <rect x="6" y="14" width="40" height="44" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="2"></rect>
+  <rect x="18" y="6" width="40" height="44" rx="6" fill="#ffffff" stroke="#2563eb" stroke-width="2"></rect>
+  <path d="M27 28 L34 35 L48 21" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+  <text x="76" y="40" font-family="Inter Tight, system-ui, sans-serif" font-weight="600" font-size="22" letter-spacing="-0.02em" fill="#0f172a">EDN Tracker</text>
+</svg>

@@ -1,0 +1,421 @@
+/* =========================================================================
+   EDN Tracker — Design Tokens
+   v0.1
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+/* -------------------------------------------------------------------------
+   1. PRIMITIVE TOKENS — never reference these directly in components.
+   ------------------------------------------------------------------------- */
+:root {
+  /* Slate scale (cool neutrals) */
+  --slate-50:  #f8fafc;
+  --slate-75:  #f4f6f8;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+  --slate-950: #020617;
+
+  /* Stone scale (warm neutrals — used for reading mode + paper backgrounds) */
+  --stone-50:  #fafaf9;
+  --stone-100: #f5f5f4;
+  --stone-200: #e7e5e4;
+  --paper:     #faf7f2;
+
+  /* Blue accent */
+  --blue-50:  #eff6ff;
+  --blue-100: #dbeafe;
+  --blue-200: #bfdbfe;
+  --blue-300: #93c5fd;
+  --blue-400: #60a5fa;
+  --blue-500: #3b82f6;
+  --blue-600: #2563eb;
+  --blue-700: #1d4ed8;
+  --blue-800: #1e40af;
+  --blue-900: #1e3a8a;
+
+  /* Semantic primitives */
+  --green-100: #dcfce7;
+  --green-500: #22c55e;
+  --green-600: #16a34a;
+  --green-700: #15803d;
+
+  --amber-100: #fef3c7;
+  --amber-500: #f59e0b;
+  --amber-600: #d97706;
+  --amber-700: #b45309;
+
+  --rose-100:  #ffe4e6;
+  --rose-500:  #f43f5e;
+  --rose-600:  #e11d48;
+  --rose-700:  #be123c;
+
+  --violet-500: #8b5cf6;
+
+  /* Highlight tokens — for PDF + note annotation */
+  --hl-yellow: #fde68a;
+  --hl-green:  #bbf7d0;
+  --hl-rose:   #fecdd3;
+  --hl-blue:   #bfdbfe;
+  --hl-lavender: #ddd6fe;
+}
+
+/* -------------------------------------------------------------------------
+   2. SEMANTIC TOKENS — light mode (default).
+   These are what components reference.
+   ------------------------------------------------------------------------- */
+:root,
+[data-theme="light"] {
+  /* Backgrounds */
+  --bg-canvas:   var(--stone-50);          /* the page */
+  --bg-surface:  #ffffff;                  /* cards, panels */
+  --bg-sunken:   var(--slate-75);          /* input wells, code blocks */
+  --bg-hover:    rgba(37, 99, 235, .04);   /* row hover */
+  --bg-selected: rgba(37, 99, 235, .08);   /* row selected */
+  --bg-overlay:  rgba(15, 23, 42, .40);    /* modal scrim */
+
+  /* Foregrounds */
+  --fg-1:        var(--slate-900);         /* primary text */
+  --fg-2:        var(--slate-700);         /* secondary text */
+  --fg-3:        var(--slate-500);         /* tertiary, placeholder */
+  --fg-muted:    var(--slate-400);         /* icons, metadata */
+  --fg-on-accent: #ffffff;
+
+  /* Accent */
+  --accent:      var(--blue-600);
+  --accent-hover: var(--blue-700);
+  --accent-fg:   var(--blue-700);          /* accent text on canvas */
+  --accent-bg:   var(--blue-50);           /* accent tint background */
+  --accent-border: var(--blue-200);
+
+  /* Borders */
+  --border-subtle:  var(--slate-200);
+  --border-default: var(--slate-300);
+  --border-strong:  var(--slate-700);
+  --border-focus:   var(--blue-600);
+
+  /* Semantic */
+  --success-fg: var(--green-700);
+  --success-bg: var(--green-100);
+  --success-border: #86efac;
+
+  --warning-fg: var(--amber-700);
+  --warning-bg: var(--amber-100);
+  --warning-border: #fcd34d;
+
+  --danger-fg:  var(--rose-700);
+  --danger-bg:  var(--rose-100);
+  --danger-border: #fda4af;
+
+  --info-fg: var(--blue-700);
+  --info-bg: var(--blue-50);
+  --info-border: var(--blue-200);
+
+  /* Anki rating buttons (fixed across themes) */
+  --anki-again: var(--rose-600);
+  --anki-hard:  var(--amber-600);
+  --anki-good:  var(--green-600);
+  --anki-easy:  var(--blue-600);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06), 0 0 0 1px rgba(15, 23, 42, .04);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, .08), 0 1px 2px rgba(15, 23, 42, .04);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, .12), 0 2px 6px rgba(15, 23, 42, .06);
+  --shadow-focus: 0 0 0 2px var(--bg-canvas), 0 0 0 4px var(--accent);
+}
+
+/* -------------------------------------------------------------------------
+   3. DARK MODE
+   ------------------------------------------------------------------------- */
+[data-theme="dark"] {
+  --bg-canvas:   #0a0a0b;
+  --bg-surface:  #131316;
+  --bg-sunken:   #08080a;
+  --bg-hover:    rgba(96, 165, 250, .08);
+  --bg-selected: rgba(96, 165, 250, .14);
+  --bg-overlay:  rgba(0, 0, 0, .60);
+
+  --fg-1:        #f4f4f5;
+  --fg-2:        #c4c4c8;
+  --fg-3:        #8b8b92;
+  --fg-muted:    #5f5f67;
+  --fg-on-accent: #ffffff;
+
+  --accent:      var(--blue-400);
+  --accent-hover: var(--blue-300);
+  --accent-fg:   var(--blue-300);
+  --accent-bg:   rgba(96, 165, 250, .10);
+  --accent-border: rgba(96, 165, 250, .28);
+
+  --border-subtle:  #25252a;
+  --border-default: #34343b;
+  --border-strong:  #55555f;
+  --border-focus:   var(--blue-400);
+
+  --success-fg: #4ade80;
+  --success-bg: rgba(34, 197, 94, .12);
+  --success-border: rgba(34, 197, 94, .28);
+
+  --warning-fg: #fbbf24;
+  --warning-bg: rgba(245, 158, 11, .12);
+  --warning-border: rgba(245, 158, 11, .28);
+
+  --danger-fg: #fb7185;
+  --danger-bg: rgba(244, 63, 94, .12);
+  --danger-border: rgba(244, 63, 94, .28);
+
+  --info-fg: var(--blue-300);
+  --info-bg: rgba(96, 165, 250, .10);
+  --info-border: rgba(96, 165, 250, .28);
+
+  --shadow-sm: 0 0 0 1px rgba(255, 255, 255, .04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, .40), 0 0 0 1px rgba(255, 255, 255, .04);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, .60), 0 0 0 1px rgba(255, 255, 255, .06);
+  --shadow-focus: 0 0 0 2px var(--bg-canvas), 0 0 0 4px var(--accent);
+}
+
+/* -------------------------------------------------------------------------
+   4. TYPE SYSTEM
+   ------------------------------------------------------------------------- */
+:root {
+  --font-ui:      'Inter Tight', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Modular scale, base 14, ratio 1.125 */
+  --text-xs:   12px;   /* metadata, dense table */
+  --text-sm:   13px;   /* default UI floor */
+  --text-base: 14px;   /* default UI */
+  --text-md:   16px;   /* reading text */
+  --text-lg:   18px;   /* card titles */
+  --text-xl:   20px;   /* section heads */
+  --text-2xl:  24px;   /* h2 */
+  --text-3xl:  30px;   /* h1 */
+  --text-4xl:  40px;   /* display */
+  --text-5xl:  56px;   /* hero */
+
+  --leading-tight:  1.2;
+  --leading-snug:   1.35;
+  --leading-normal: 1.5;
+  --leading-loose:  1.65;
+
+  --tracking-tight:  -0.02em;
+  --tracking-normal: 0em;
+  --tracking-wide:   0.04em;
+  --tracking-caps:   0.08em;
+
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+}
+
+/* -------------------------------------------------------------------------
+   5. SPACING, RADII, MOTION
+   ------------------------------------------------------------------------- */
+:root {
+  --space-0: 0;
+  --space-px: 1px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-pill: 999px;
+  --radius-none: 0;
+
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-in:  cubic-bezier(.4, 0, 1, 1);
+  --ease-inout: cubic-bezier(.4, 0, .2, 1);
+
+  --dur-micro:  80ms;
+  --dur-sm:     160ms;
+  --dur-md:     240ms;
+  --dur-lg:     480ms;
+
+  --layout-sidebar:        240px;
+  --layout-sidebar-collapsed: 56px;
+  --layout-rightpanel:     320px;
+  --layout-topbar:         48px;
+  --layout-content-prose:  720px;
+}
+
+/* -------------------------------------------------------------------------
+   6. BASE ELEMENT STYLES (semantic CSS — h1, p, code, etc.)
+   ------------------------------------------------------------------------- */
+html {
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  color: var(--fg-1);
+  background: var(--bg-canvas);
+  font-feature-settings: "cv11", "ss01"; /* Inter Tight stylistic */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  line-height: var(--leading-normal);
+}
+
+/* Headings */
+h1, .h1 {
+  font-family: var(--font-ui);
+  font-size: var(--text-3xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-1);
+  margin: 0;
+}
+h2, .h2 {
+  font-family: var(--font-ui);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-1);
+  margin: 0;
+}
+h3, .h3 {
+  font-family: var(--font-ui);
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-1);
+  margin: 0;
+}
+h4, .h4 {
+  font-family: var(--font-ui);
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-1);
+  margin: 0;
+}
+
+.display {
+  font-family: var(--font-display);
+  font-size: var(--text-5xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  font-style: italic;
+  font-weight: 400;
+  color: var(--fg-1);
+}
+
+p {
+  margin: 0;
+  color: var(--fg-2);
+  line-height: var(--leading-normal);
+}
+
+.prose {
+  font-size: var(--text-md);
+  line-height: var(--leading-loose);
+  color: var(--fg-1);
+  max-width: var(--layout-content-prose);
+}
+
+.eyebrow {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  font-weight: var(--weight-semibold);
+  color: var(--fg-3);
+}
+
+.meta {
+  font-size: var(--text-xs);
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+code, kbd, samp, .mono {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  font-feature-settings: "calt" 0; /* ligatures off */
+}
+
+code {
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 1px 5px;
+  color: var(--fg-1);
+}
+
+kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 11px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-xs);
+  color: var(--fg-2);
+}
+
+a {
+  color: var(--accent-fg);
+  text-decoration: none;
+}
+a:hover { text-decoration: underline; }
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  margin: var(--space-5) 0;
+}
+
+/* Tabular numbers utility */
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* Focus ring (apply to interactive elements) */
+.focusable:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background: var(--accent-bg);
+  color: var(--fg-1);
+}
+
+/* Scrollbars (dark mode darker, light mode subtler) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--bg-canvas);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--border-default); }

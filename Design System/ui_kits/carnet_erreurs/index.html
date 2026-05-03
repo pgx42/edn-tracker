@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8"><title>EDN Tracker — Carnet d'erreurs</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+html,body{height:100%;margin:0;font-family:var(--font-ui);background:var(--bg-canvas);color:var(--fg-1)}
+body{display:flex;flex-direction:column}
+header{height:48px;display:flex;align-items:center;gap:12px;padding:0 18px;border-bottom:1px solid var(--border-subtle)}
+main{flex:1;display:grid;grid-template-columns:380px 1fr;overflow:hidden}
+
+.left{border-right:1px solid var(--border-subtle);overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;background:var(--bg-canvas)}
+.cover{padding:20px;background:var(--paper);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);display:flex;flex-direction:column;gap:8px}
+.cover .display{font-family:var(--font-display);font-style:italic;font-size:36px;line-height:1.1;color:var(--fg-1)}
+.cover .stats{display:flex;gap:16px;font-size:12px;color:var(--fg-2);font-variant-numeric:tabular-nums;margin-top:4px}
+.cover .stats b{font-size:18px;color:var(--fg-1);font-weight:600;display:block}
+
+.search{display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--radius-sm)}
+.search input{flex:1;border:0;outline:0;font-size:13px;background:transparent;color:var(--fg-1);font-family:var(--font-ui)}
+
+.filter-row{display:flex;gap:6px;flex-wrap:wrap}
+.fchip{padding:3px 9px;font-size:11px;color:var(--fg-2);background:var(--bg-sunken);border:1px solid var(--border-subtle);border-radius:999px;cursor:pointer}
+.fchip.active{background:var(--accent-bg);color:var(--accent-fg);border-color:var(--accent-border);font-weight:500}
+
+.entry{padding:12px 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);cursor:pointer;display:flex;flex-direction:column;gap:6px;border-left:3px solid var(--danger-fg)}
+.entry.selected{border-color:var(--accent);box-shadow:inset 4px 0 0 var(--accent),0 0 0 1px var(--accent)}
+.entry .top{display:flex;align-items:center;gap:8px}
+.entry .item{font-size:11px;font-weight:600;color:var(--accent-fg);background:var(--accent-bg);padding:2px 7px;border-radius:var(--radius-xs);font-family:var(--font-mono)}
+.entry .date{font-size:11px;color:var(--fg-3);margin-left:auto;font-variant-numeric:tabular-nums}
+.entry .title{font-size:13px;font-weight:500;color:var(--fg-1)}
+.entry .preview{font-size:12px;color:var(--fg-3);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.entry .badges{display:flex;gap:4px;margin-top:2px}
+.entry .badge{font-size:10px;padding:1px 6px;border-radius:999px;background:var(--bg-sunken);color:var(--fg-2);border:1px solid var(--border-subtle)}
+
+.right{overflow-y:auto;padding:32px 48px;background:var(--paper)}
+.detail{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+.detail .head{display:flex;flex-direction:column;gap:10px}
+.detail h1{font-family:var(--font-display);font-style:italic;font-size:36px;line-height:1.15;font-weight:400;color:var(--fg-1);margin:0}
+.detail .meta-row{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--fg-3)}
+.section{display:flex;flex-direction:column;gap:8px}
+.section .ey{font-size:10px;font-weight:600;color:var(--fg-3);text-transform:uppercase;letter-spacing:.08em}
+.callout-q{background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px 20px;font-size:14px;line-height:1.6;color:var(--fg-1);font-family:'Iowan Old Style',Georgia,serif}
+.callout-wrong{background:var(--danger-bg);border:1px solid var(--danger-border);border-radius:var(--radius-md);padding:14px 18px;display:flex;flex-direction:column;gap:6px}
+.callout-wrong .lab{font-size:11px;font-weight:600;color:var(--danger-fg);text-transform:uppercase;letter-spacing:.06em}
+.callout-wrong .body{font-size:14px;color:var(--fg-1);line-height:1.5}
+.callout-right{background:var(--success-bg);border:1px solid var(--success-border);border-radius:var(--radius-md);padding:14px 18px;display:flex;flex-direction:column;gap:6px}
+.callout-right .lab{font-size:11px;font-weight:600;color:var(--success-fg);text-transform:uppercase;letter-spacing:.06em}
+.callout-right .body{font-size:14px;color:var(--fg-1);line-height:1.5}
+.callout-right .body strong{color:var(--success-fg)}
+.note-body{background:var(--paper);border-left:3px solid var(--accent);padding:6px 14px;font-size:14px;line-height:1.7;color:var(--fg-1);font-style:italic}
+.links-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.link-card{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);font-size:13px;cursor:pointer}
+.link-card .ico{color:var(--fg-muted)}
+.actions{display:flex;gap:10px;padding-top:8px;border-top:1px solid var(--border-subtle)}
+.btn{height:32px;padding:0 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:var(--font-ui)}
+.btn-primary{background:var(--accent);color:#fff;border:0}
+.btn-secondary{background:var(--bg-surface);color:var(--fg-1);border:1px solid var(--border-default)}
+</style>
+</head>
+<body>
+<header>
+  <img src="../../assets/logo.svg" width="20" height="20"/>
+  <span style="font-weight:600;font-size:13px">Carnet d'erreurs</span>
+  <span class="meta" style="margin-left:auto">7 erreurs ouvertes · 23 résolues ce mois</span>
+</header>
+<main>
+  <aside class="left">
+    <div class="cover">
+      <span class="eyebrow">Avril 2026</span>
+      <div class="display">Sept erreurs ouvertes.</div>
+      <div class="stats">
+        <div><b>7</b>à retravailler</div>
+        <div><b>23</b>résolues</div>
+        <div><b>78%</b>précision</div>
+      </div>
+    </div>
+
+    <div class="search">
+      <i data-lucide="search" style="color:var(--fg-muted)"></i>
+      <input placeholder="Rechercher dans le carnet..."/>
+      <span style="font-size:10px;color:var(--fg-3);font-family:var(--font-mono)">⌘F</span>
+    </div>
+
+    <div class="filter-row">
+      <span class="fchip active">Toutes · 7</span>
+      <span class="fchip">Cardiologie · 3</span>
+      <span class="fchip">Endocrino · 2</span>
+      <span class="fchip">Neuro · 1</span>
+      <span class="fchip">Pneumo · 1</span>
+    </div>
+
+    <div class="entry selected">
+      <div class="top"><span class="item">334</span><span style="font-size:11px;color:var(--fg-3)">cardiologie</span><span class="date">il y a 3 j</span></div>
+      <div class="title">Délai limite de fibrinolyse dans le SCA ST+</div>
+      <div class="preview">J'ai répondu 6 heures. La bonne réponse est 12 heures, mais l'angioplastie reste préférée si délai porte-ballon &lt; 90 min...</div>
+      <div class="badges"><span class="badge">↻ vu 3×</span><span class="badge">PDF</span><span class="badge">Anki</span></div>
+    </div>
+
+    <div class="entry">
+      <div class="top"><span class="item">232</span><span style="font-size:11px;color:var(--fg-3)">endocrinologie</span><span class="date">il y a 5 j</span></div>
+      <div class="title">Critère HbA1c pour le diabète</div>
+      <div class="preview">Confondu seuil 6.5% (diagnostic) avec 7% (objectif thérapeutique chez la majorité des patients).</div>
+      <div class="badges"><span class="badge">↻ vu 2×</span><span class="badge">Anki</span></div>
+    </div>
+
+    <div class="entry">
+      <div class="top"><span class="item">102</span><span style="font-size:11px;color:var(--fg-3)">neurologie</span><span class="date">il y a 1 sem.</span></div>
+      <div class="title">Critères McDonald révisés 2017</div>
+      <div class="preview">Mauvaise interprétation de la dissémination dans le temps : LCS ne suffit pas seule sans IRM.</div>
+      <div class="badges"><span class="badge">↻ vu 4×</span><span class="badge">Mindmap</span></div>
+    </div>
+
+    <div class="entry">
+      <div class="top"><span class="item">226</span><span style="font-size:11px;color:var(--fg-3)">pneumologie</span><span class="date">il y a 2 sem.</span></div>
+      <div class="title">Score de Wells pour EP</div>
+      <div class="preview">Oublié les signes cliniques de TVP (3 points). Score sous-estimé à 4 au lieu de 7.</div>
+      <div class="badges"><span class="badge">↻ vu 1×</span><span class="badge">PDF</span></div>
+    </div>
+
+    <div class="entry">
+      <div class="top"><span class="item">328</span><span style="font-size:11px;color:var(--fg-3)">cardiologie</span><span class="date">il y a 2 sem.</span></div>
+      <div class="title">NYHA III vs IV</div>
+      <div class="preview">Symptômes au moindre effort = III. Au repos = IV. J'avais inversé.</div>
+      <div class="badges"><span class="badge">Anki</span></div>
+    </div>
+  </aside>
+
+  <section class="right">
+    <article class="detail">
+      <header class="head">
+        <span style="display:flex;gap:8px;align-items:center"><span class="entry" style="display:inline-flex;align-items:center;background:var(--accent-bg);color:var(--accent-fg);font-size:11px;font-weight:600;padding:3px 9px;border-radius:var(--radius-xs);font-family:var(--font-mono);border:0;border-left:0">item 334</span><span style="font-size:12px;color:var(--fg-3)">Cardiologie · ouverte il y a 3 jours · vue 3 fois</span></span>
+        <h1>Délai limite de fibrinolyse dans le SCA ST+.</h1>
+      </header>
+
+      <div class="section">
+        <div class="ey">La question</div>
+        <div class="callout-q">Au-delà de quel délai la fibrinolyse n'est-elle plus l'option préférentielle de revascularisation dans le SCA ST+ ?</div>
+      </div>
+
+      <div class="section">
+        <div class="ey">Mes erreurs</div>
+        <div class="callout-wrong">
+          <span class="lab">✗ Ma réponse — il y a 3 j</span>
+          <span class="body">6 heures. Je pensais que la fenêtre thérapeutique était identique à celle de l'AVC ischémique.</span>
+        </div>
+        <div class="callout-wrong">
+          <span class="lab">✗ Re-tentative — il y a 1 j</span>
+          <span class="body">"Avant 12 h" — réponse correcte mais incomplète : oublié l'angioplastie primaire qui reste l'option de premier choix si délai porte-ballon &lt; 90 min.</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="ey">La réponse</div>
+        <div class="callout-right">
+          <span class="lab">✓ Bonne réponse</span>
+          <span class="body"><strong>12 heures.</strong> Au-delà de 12 h après le début de la douleur, la fibrinolyse perd son bénéfice et l'angioplastie primaire reste indiquée si une ischémie persistante est présente. <strong>Avant 12 h :</strong> porte-aiguille &lt; 30 min (fibrinolyse) ou porte-ballon &lt; 90 min (angioplastie primaire).</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="ey">Ma note</div>
+        <div class="note-body">L'angioplastie primaire est toujours préférée si elle peut être réalisée dans les délais. La fibrinolyse est le plan B. Confondre AVC et SCA pour les délais : pas la même chose, l'AVC c'est 4h30.</div>
+      </div>
+
+      <div class="section">
+        <div class="ey">Sources liées</div>
+        <div class="links-row">
+          <div class="link-card"><i data-lucide="file-text" class="ico"></i><div><div style="font-weight:500">Cardio.pdf · p. 47</div><div class="meta">Polycopié ECN 2024</div></div></div>
+          <div class="link-card"><i data-lucide="layers" class="ico"></i><div><div style="font-weight:500">Anki — SCA · 18 cartes</div><div class="meta">deck pharmaco</div></div></div>
+          <div class="link-card"><i data-lucide="git-branch" class="ico"></i><div><div style="font-weight:500">Mindmap — Reperfusion</div><div class="meta">3 nœuds liés</div></div></div>
+          <div class="link-card"><i data-lucide="calendar" class="ico"></i><div><div style="font-weight:500">Re-review J+7</div><div class="meta">prévue mar. 5</div></div></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary"><i data-lucide="rotate-cw"></i>Re-tester maintenant</button>
+        <button class="btn btn-secondary"><i data-lucide="check-circle-2"></i>Marquer résolue</button>
+        <button class="btn btn-secondary"><i data-lucide="archive"></i>Archiver</button>
+      </div>
+    </article>
+  </section>
+</main>
+<script>lucide.createIcons({attrs:{'stroke-width':1.5,width:14,height:14}});</script>
+</body></html>

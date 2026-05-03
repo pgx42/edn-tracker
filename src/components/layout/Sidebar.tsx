@@ -20,6 +20,24 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { APP_NAME } from "@/lib/constants";
 
+// Brand mark — design system: stacked-square + check, single-color via currentColor.
+// Source of truth: Design System/assets/logo-mono.svg
+function BrandMark({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 64 64"
+      fill="none"
+      role="img"
+      aria-label="EDN Tracker"
+    >
+      <rect x="6" y="14" width="40" height="44" rx="6" stroke="currentColor" strokeWidth="2" opacity="0.5" />
+      <rect x="18" y="6" width="40" height="44" rx="6" stroke="currentColor" strokeWidth="2" />
+      <path d="M27 28 L34 35 L48 21" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/pdfs", label: "PDFs", icon: FileText },
@@ -44,11 +62,14 @@ export function Sidebar() {
     >
       {/* Header */}
       <div className="flex items-center justify-between h-14 px-3 border-b border-sidebar-border shrink-0">
-        {!sidebarCollapsed && (
-          <span className="font-semibold text-sidebar-foreground truncate text-sm">
-            {APP_NAME}
-          </span>
-        )}
+        <div className="flex items-center gap-2 min-w-0">
+          <BrandMark className="h-6 w-6 shrink-0 text-sidebar-primary" />
+          {!sidebarCollapsed && (
+            <span className="font-semibold text-sidebar-foreground truncate text-sm">
+              {APP_NAME}
+            </span>
+          )}
+        </div>
         <Button
           variant="ghost"
           size="icon"

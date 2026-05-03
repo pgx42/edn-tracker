@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8"><title>EDN Tracker — Mindmap</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+html,body{height:100%;margin:0;font-family:var(--font-ui);background:var(--bg-canvas);color:var(--fg-1);overflow:hidden}
+header{height:48px;display:flex;align-items:center;gap:12px;padding:0 14px;border-bottom:1px solid var(--border-subtle);position:relative;z-index:5;background:var(--bg-canvas)}
+.canvas-wrap{position:absolute;inset:48px 0 0 0;background:var(--bg-canvas);background-image:radial-gradient(circle,var(--border-subtle) 1px,transparent 1px);background-size:24px 24px}
+.toolbar-floating{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;gap:4px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:4px;box-shadow:var(--shadow-md);z-index:4}
+.toolbar-floating button{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:0;border-radius:var(--radius-sm);cursor:pointer;color:var(--fg-2)}
+.toolbar-floating button.active{background:var(--bg-selected);color:var(--accent-fg)}
+.toolbar-floating button:hover{background:var(--bg-hover)}
+.toolbar-floating .div{width:1px;background:var(--border-subtle);margin:4px 2px}
+
+.zoomctrl{position:absolute;bottom:14px;left:14px;display:flex;gap:4px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:3px;box-shadow:var(--shadow-sm)}
+.zoomctrl button{width:28px;height:24px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:0;border-radius:var(--radius-xs);cursor:pointer;color:var(--fg-2)}
+.zoomctrl span{display:inline-flex;align-items:center;padding:0 8px;font-size:11px;font-family:var(--font-mono);color:var(--fg-2)}
+
+.layers{position:absolute;top:12px;left:14px;width:220px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);box-shadow:var(--shadow-sm);padding:10px}
+.layers h4{margin:0 0 8px;font-size:11px;font-weight:600;color:var(--fg-3);text-transform:uppercase;letter-spacing:.08em}
+.layer-row{display:flex;align-items:center;gap:8px;padding:5px 4px;font-size:12px;border-radius:var(--radius-xs);cursor:pointer}
+.layer-row:hover{background:var(--bg-hover)}
+
+.props{position:absolute;top:12px;right:14px;width:240px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);box-shadow:var(--shadow-sm);padding:14px;display:flex;flex-direction:column;gap:12px}
+.props .ey{font-size:10px;font-weight:600;color:var(--fg-3);text-transform:uppercase;letter-spacing:.08em}
+.color-row{display:flex;gap:6px}
+.color-row span{width:22px;height:22px;border-radius:50%;cursor:pointer;border:1px solid var(--border-subtle)}
+.stroke-row{display:flex;gap:4px}
+.stroke-row button{flex:1;height:28px;background:var(--bg-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-xs);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.stroke-row button.active{border-color:var(--accent);background:var(--bg-selected)}
+.props label{display:flex;justify-content:space-between;font-size:12px;color:var(--fg-2);align-items:center}
+</style>
+</head>
+<body>
+<header>
+  <img src="../../assets/logo.svg" width="20" height="20"/>
+  <span style="font-weight:600;font-size:13px">Conduction cardiaque</span>
+  <span class="meta">18 nœuds · liée à 4 PDFs · 12 cartes Anki</span>
+  <div style="flex:1"></div>
+  <button style="height:28px;padding:0 12px;background:var(--bg-surface);color:var(--fg-1);border:1px solid var(--border-default);border-radius:var(--radius-sm);font-size:12px;cursor:pointer">Partager</button>
+</header>
+<div class="canvas-wrap">
+  <div class="toolbar-floating">
+    <button title="Sélection" class="active"><i data-lucide="mouse-pointer-2"></i></button>
+    <button title="Main"><i data-lucide="hand"></i></button>
+    <div class="div"></div>
+    <button title="Rectangle"><i data-lucide="square"></i></button>
+    <button title="Diamant"><i data-lucide="diamond"></i></button>
+    <button title="Cercle"><i data-lucide="circle"></i></button>
+    <button title="Flèche"><i data-lucide="arrow-right"></i></button>
+    <button title="Trait"><i data-lucide="minus"></i></button>
+    <button title="Crayon"><i data-lucide="pencil"></i></button>
+    <button title="Texte"><i data-lucide="type"></i></button>
+    <div class="div"></div>
+    <button title="Lien interne"><i data-lucide="link"></i></button>
+    <button title="Embed PDF"><i data-lucide="file-text"></i></button>
+  </div>
+
+  <svg width="100%" height="100%" style="position:absolute;inset:0">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--fg-2)"/></marker>
+      <filter id="rough"><feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="1.5"/></filter>
+    </defs>
+
+    <!-- Edges -->
+    <g stroke="var(--fg-2)" stroke-width="1.5" fill="none" filter="url(#rough)" marker-end="url(#arr)">
+      <path d="M 380 230 C 480 230, 540 230, 600 230"/>
+      <path d="M 760 230 C 820 230, 860 280, 880 320"/>
+      <path d="M 760 230 C 820 230, 860 180, 880 140"/>
+      <path d="M 880 140 C 900 140, 1020 140, 1080 200"/>
+      <path d="M 880 320 C 900 320, 1020 320, 1080 280"/>
+      <path d="M 250 230 C 250 350, 380 420, 480 420"/>
+      <path d="M 480 420 C 600 420, 720 420, 800 420"/>
+    </g>
+
+    <!-- Hand-drawn rectangles -->
+    <g filter="url(#rough)">
+      <!-- Nœud sinusal (origin) -->
+      <rect x="120" y="190" width="240" height="80" rx="6" fill="var(--accent-bg)" stroke="var(--accent)" stroke-width="2"/>
+      <text x="240" y="220" text-anchor="middle" font-family="Caveat,'Comic Sans MS',cursive" font-size="20" font-weight="600" fill="var(--accent-fg)">Nœud sinusal</text>
+      <text x="240" y="244" text-anchor="middle" font-family="Inter Tight" font-size="11" fill="var(--fg-2)">pacemaker · 60–100/min</text>
+
+      <!-- AV node -->
+      <rect x="600" y="190" width="160" height="80" rx="6" fill="#fff" stroke="var(--fg-1)" stroke-width="1.5"/>
+      <text x="680" y="220" text-anchor="middle" font-family="Caveat,'Comic Sans MS',cursive" font-size="18" font-weight="600" fill="var(--fg-1)">Nœud AV</text>
+      <text x="680" y="240" text-anchor="middle" font-family="Inter Tight" font-size="11" fill="var(--fg-2)">délai PR</text>
+
+      <!-- Faisceau de His -->
+      <ellipse cx="950" cy="140" rx="80" ry="32" fill="var(--hl-yellow)" stroke="var(--fg-1)" stroke-width="1.5"/>
+      <text x="950" y="146" text-anchor="middle" font-family="Caveat,'Comic Sans MS',cursive" font-size="17" font-weight="600">Faisceau de His</text>
+
+      <!-- Branches -->
+      <ellipse cx="950" cy="320" rx="80" ry="32" fill="var(--hl-green)" stroke="var(--fg-1)" stroke-width="1.5"/>
+      <text x="950" y="318" text-anchor="middle" font-family="Caveat,'Comic Sans MS',cursive" font-size="15" font-weight="600">Branches D / G</text>
+      <text x="950" y="334" text-anchor="middle" font-family="Inter Tight" font-size="10" fill="var(--fg-2)">→ ventricules</text>
+
+      <!-- Purkinje -->
+      <rect x="1080" y="160" width="180" height="80" rx="6" fill="#fff" stroke="var(--fg-1)" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <text x="1170" y="195" text-anchor="middle" font-family="Caveat,'Comic Sans MS',cursive" font-size="18" font-weight="600">Purkinje</text>
+      <text x="1170" y="216" text-anchor="middle" font-family="Inter Tight" font-size="11" fill="var(--fg-2)">contraction ventr.</text>
+
+      <rect x="1080" y="240" width="180" height="80" rx="6" fill="var(--hl-rose)" stroke="var(--fg-1)" stroke-width="1.5"/>
+      <text x="1170" y="275" text-anchor="middle" font-family="Caveat,'Comic Sans MS',cursive" font-size="17" font-weight="600">QRS</text>
+      <text x="1170" y="296" text-anchor="middle" font-family="Inter Tight" font-size="10" fill="var(--fg-2)">&lt; 120 ms · normal</text>
+
+      <!-- Pathologie -->
+      <rect x="380" y="380" width="200" height="80" rx="6" fill="var(--danger-bg)" stroke="var(--danger-fg)" stroke-width="1.5"/>
+      <text x="480" y="412" text-anchor="middle" font-family="Caveat,'Comic Sans MS',cursive" font-size="17" font-weight="600" fill="var(--danger-fg)">BAV 3e degré</text>
+      <text x="480" y="434" text-anchor="middle" font-family="Inter Tight" font-size="10" fill="var(--fg-2)">dissociation auriculo-ventr.</text>
+
+      <rect x="700" y="380" width="200" height="80" rx="6" fill="var(--warning-bg)" stroke="var(--warning-fg)" stroke-width="1.5"/>
+      <text x="800" y="412" text-anchor="middle" font-family="Caveat,'Comic Sans MS',cursive" font-size="17" font-weight="600" fill="var(--warning-fg)">Bloc de branche</text>
+      <text x="800" y="434" text-anchor="middle" font-family="Inter Tight" font-size="10" fill="var(--fg-2)">QRS élargi</text>
+    </g>
+
+    <!-- Annotations sketched -->
+    <g font-family="Caveat,'Comic Sans MS',cursive" font-size="14" fill="var(--fg-2)">
+      <text x="430" y="215" font-style="italic">↓ se propage</text>
+      <text x="800" y="200">via septum</text>
+    </g>
+  </svg>
+
+  <div class="zoomctrl">
+    <button><i data-lucide="minus"></i></button>
+    <span>87%</span>
+    <button><i data-lucide="plus"></i></button>
+    <button><i data-lucide="maximize-2"></i></button>
+  </div>
+
+  <div class="layers">
+    <h4>Calques</h4>
+    <div class="layer-row"><i data-lucide="eye" style="color:var(--fg-muted)"></i><span style="flex:1">Anatomie</span><span class="meta">8</span></div>
+    <div class="layer-row" style="background:var(--bg-selected);color:var(--accent-fg)"><i data-lucide="eye"></i><span style="flex:1">Pathologie</span><span class="meta">5</span></div>
+    <div class="layer-row"><i data-lucide="eye-off" style="color:var(--fg-muted)"></i><span style="flex:1;color:var(--fg-3)">ECG</span><span class="meta" style="color:var(--fg-3)">5</span></div>
+  </div>
+
+  <div class="props">
+    <div class="ey">Nœud sélectionné</div>
+    <div>
+      <div class="ey" style="margin-bottom:4px">Couleur</div>
+      <div class="color-row">
+        <span style="background:#fff"></span>
+        <span style="background:var(--hl-yellow)"></span>
+        <span style="background:var(--hl-green)"></span>
+        <span style="background:var(--hl-rose);outline:2px solid var(--accent);outline-offset:2px"></span>
+        <span style="background:var(--hl-blue)"></span>
+        <span style="background:var(--hl-lavender)"></span>
+      </div>
+    </div>
+    <div>
+      <div class="ey" style="margin-bottom:4px">Trait</div>
+      <div class="stroke-row">
+        <button class="active"><svg width="32" height="2"><rect width="32" height="2" fill="var(--fg-1)"/></svg></button>
+        <button><svg width="32" height="3"><rect width="32" height="3" fill="var(--fg-1)"/></svg></button>
+        <button><svg width="32" height="4"><rect width="32" height="4" fill="var(--fg-1)"/></svg></button>
+      </div>
+    </div>
+    <label>Style<span style="font-size:11px;color:var(--fg-3);font-family:var(--font-mono)">croquis</span></label>
+    <label>Opacité<span class="meta">100%</span></label>
+    <hr style="border:0;border-top:1px solid var(--border-subtle);margin:4px 0"/>
+    <div class="ey">Liens</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--accent-fg)"><i data-lucide="layers" style="color:var(--fg-muted)"></i>Anki — 4 cartes BAV</div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--accent-fg)"><i data-lucide="file-text" style="color:var(--fg-muted)"></i>Cardio.pdf, p. 67</div>
+    </div>
+  </div>
+</div>
+<script>lucide.createIcons({attrs:{'stroke-width':1.5,width:14,height:14}});</script>
+</body></html>
