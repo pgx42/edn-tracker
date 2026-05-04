@@ -1,159 +1,302 @@
 import { NavLink, useLocation } from "react-router-dom";
 import {
-  LayoutDashboard,
-  FileText,
-  List,
-  BookOpen,
-  AlertCircle,
-  PenTool,
   Calendar,
-  CreditCard,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
+  Search,
+  Clock,
+  Grid,
+  Target,
+  AlertCircle,
+  Layers,
+  Network,
+  FileText,
+  Video,
+  BookOpen,
+  Settings as SettingsIcon,
+  type LucideIcon,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useUiStore } from "@/stores/ui";
-import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { APP_NAME } from "@/lib/constants";
 
-// Brand mark — design system: stacked-square + check, single-color via currentColor.
-// Source of truth: Design System/assets/logo-mono.svg
-function BrandMark({ className }: { className?: string }) {
+function BrandMark({ size = 22 }: { size?: number }) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 64 64"
-      fill="none"
-      role="img"
-      aria-label="EDN Tracker"
-    >
-      <rect x="6" y="14" width="40" height="44" rx="6" stroke="currentColor" strokeWidth="2" opacity="0.5" />
-      <rect x="18" y="6" width="40" height="44" rx="6" stroke="currentColor" strokeWidth="2" />
-      <path d="M27 28 L34 35 L48 21" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-label="EDN Tracker" role="img">
+      <rect x="6" y="14" width="40" height="44" rx="6" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.5" />
+      <rect x="18" y="6" width="40" height="44" rx="6" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M27 28 L34 35 L48 21" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </svg>
   );
 }
 
-const navItems = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { to: "/pdfs", label: "PDFs", icon: FileText },
-  { to: "/items", label: "EDN Items", icon: List },
-  { to: "/matieres", label: "Matières", icon: BookOpen },
-  { to: "/errors", label: "Error Notebook", icon: AlertCircle },
-  { to: "/diagrams", label: "Schémas", icon: PenTool },
-  { to: "/planning", label: "Planning", icon: Calendar },
-  { to: "/anki", label: "Anki", icon: CreditCard },
+interface NavEntry {
+  to: string;
+  icon: LucideIcon;
+  label: string;
+  count?: number;
+  meta?: string;
+  kbd?: string;
+  hot?: boolean;
+  tone?: "danger";
+  exact?: boolean;
+  // If true, doesn't navigate — used for ⌘K search trigger
+  onActivate?: () => void;
+}
+
+const pinned: NavEntry[] = [
+  { to: "/", icon: Clock, label: "Aujourd'hui", count: 42, hot: true, exact: true },
+  { to: "/planning", icon: Calendar, label: "Agenda" },
+  { to: "/search", icon: Search, label: "Recherche", kbd: "⌘K" },
 ];
 
-export function Sidebar() {
-  const { sidebarCollapsed, toggleSidebar } = useUiStore();
-  const location = useLocation();
+const sections: Array<{ group: string; list: NavEntry[] }> = [
+  {
+    group: "Items EDN",
+    list: [
+      { to: "/items", icon: Grid, label: "Tous les items" },
+      { to: "/matieres", icon: Target, label: "Progression", meta: "100/362" },
+      { to: "/errors", icon: AlertCircle, label: "Carnet d'erreurs", count: 7, tone: "danger" },
+    ],
+  },
+  {
+    group: "Réviser",
+    list: [
+      { to: "/anki", icon: Layers, label: "Anki", count: 128 },
+      { to: "/diagrams", icon: Network, label: "Mindmaps" },
+    ],
+  },
+  {
+    group: "Ressources",
+    list: [
+      { to: "/pdfs", icon: FileText, label: "PDFs & polys" },
+      { to: "/videos", icon: Video, label: "Cours vidéo" },
+      { to: "/library", icon: BookOpen, label: "Bibliothèque" },
+    ],
+  },
+];
+
+const sidebarStyle: React.CSSProperties = {
+  width: 240,
+  height: "100%",
+  flexShrink: 0,
+  background: "var(--bg-canvas)",
+  borderRight: "1px solid var(--border-subtle)",
+  display: "flex",
+  flexDirection: "column",
+  fontFamily: "var(--font-ui)",
+  color: "var(--fg-1)",
+};
+
+const brand: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "14px 16px",
+  borderBottom: "1px solid var(--border-subtle)",
+};
+
+const brandMark: React.CSSProperties = {
+  width: 26,
+  height: 26,
+  color: "var(--edn-accent)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+};
+
+const groupLabel: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "var(--fg-3)",
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  padding: "4px 8px 6px",
+};
+
+const navItemBase: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "0 8px",
+  height: 30,
+  fontSize: 13,
+  color: "var(--fg-2)",
+  background: "transparent",
+  border: 0,
+  borderRadius: 6,
+  cursor: "pointer",
+  textAlign: "left",
+  fontFamily: "inherit",
+  textDecoration: "none",
+  width: "100%",
+};
+
+const navItemActive: React.CSSProperties = {
+  background: "var(--bg-selected)",
+  color: "var(--edn-accent-fg)",
+  fontWeight: 500,
+};
+
+function NavRow({ entry, isActive }: { entry: NavEntry; isActive: boolean }) {
+  const Icon = entry.icon;
+  const content = (
+    <>
+      <Icon size={15} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+      <span style={{ flex: 1, textAlign: "left" }}>{entry.label}</span>
+      {entry.meta && (
+        <span style={{ fontSize: 12, color: "var(--fg-3)", fontVariantNumeric: "tabular-nums" }}>
+          {entry.meta}
+        </span>
+      )}
+      {entry.count != null && (
+        <span
+          style={
+            entry.tone === "danger" || entry.hot
+              ? {
+                  fontSize: 12,
+                  color: "var(--danger-fg)",
+                  background: "var(--danger-bg)",
+                  padding: "1px 7px",
+                  borderRadius: 999,
+                  fontVariantNumeric: "tabular-nums",
+                  fontWeight: 500,
+                }
+              : {
+                  fontSize: 12,
+                  color: "var(--fg-3)",
+                  fontVariantNumeric: "tabular-nums",
+                  background: "var(--bg-sunken)",
+                  padding: "1px 7px",
+                  borderRadius: 999,
+                }
+          }
+        >
+          {entry.count}
+        </span>
+      )}
+      {entry.kbd && <span style={{ fontSize: 12, color: "var(--fg-3)", fontFamily: "var(--font-mono)" }}>{entry.kbd}</span>}
+    </>
+  );
+
+  // Pseudo-route entries (search) are rendered as buttons that trigger ⌘K via global handler
+  if (entry.to === "/search") {
+    return (
+      <button
+        type="button"
+        style={navItemBase}
+        onClick={() => {
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
+        }}
+      >
+        {content}
+      </button>
+    );
+  }
 
   return (
-    <aside
-      className={cn(
-        "flex flex-col h-full bg-sidebar border-r border-sidebar-border transition-all duration-200",
-        sidebarCollapsed ? "w-14" : "w-56"
+    <NavLink to={entry.to} end={entry.exact} style={{ textDecoration: "none" }}>
+      {() => (
+        <div style={isActive ? { ...navItemBase, ...navItemActive } : navItemBase}>{content}</div>
       )}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between h-14 px-3 border-b border-sidebar-border shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <BrandMark className="h-6 w-6 shrink-0 text-sidebar-primary" />
-          {!sidebarCollapsed && (
-            <span className="font-semibold text-sidebar-foreground truncate text-sm">
-              {APP_NAME}
-            </span>
-          )}
+    </NavLink>
+  );
+}
+
+export function Sidebar() {
+  const location = useLocation();
+  const isActive = (entry: NavEntry) =>
+    entry.exact ? location.pathname === entry.to : location.pathname.startsWith(entry.to);
+
+  return (
+    <aside style={sidebarStyle}>
+      <div style={brand}>
+        <div style={brandMark}>
+          <BrandMark />
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleSidebar}
-          className="ml-auto h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent"
-          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {sidebarCollapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
-        </Button>
+        <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--fg-1)" }}>
+          {APP_NAME}
+        </div>
       </div>
 
-      {/* Nav */}
-      <ScrollArea className="flex-1 py-2">
-        <nav className="flex flex-col gap-0.5 px-2">
-          {navItems.map(({ to, label, icon: Icon, exact }) => {
-            const isActive = exact
-              ? location.pathname === to
-              : location.pathname.startsWith(to);
+      <nav style={{ padding: "12px 8px", display: "flex", flexDirection: "column", gap: 16, flex: 1, overflowY: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          {pinned.map((entry) => (
+            <NavRow key={entry.to} entry={entry} isActive={isActive(entry)} />
+          ))}
+        </div>
+        {sections.map((g) => (
+          <div key={g.group} style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <div style={groupLabel}>{g.group}</div>
+            {g.list.map((entry) => (
+              <NavRow key={entry.to} entry={entry} isActive={isActive(entry)} />
+            ))}
+          </div>
+        ))}
+      </nav>
 
-            const link = (
-              <NavLink
-                to={to}
-                className={cn(
-                  "flex items-center gap-3 rounded-md px-2 py-2 text-sm font-medium transition-colors",
-                  "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  isActive && "bg-sidebar-accent text-sidebar-primary"
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!sidebarCollapsed && <span>{label}</span>}
-              </NavLink>
-            );
-
-            if (sidebarCollapsed) {
-              return (
-                <Tooltip key={to} delayDuration={0}>
-                  <TooltipTrigger asChild>{link}</TooltipTrigger>
-                  <TooltipContent side="right">{label}</TooltipContent>
-                </Tooltip>
-              );
-            }
-
-            return <div key={to}>{link}</div>;
-          })}
-        </nav>
-      </ScrollArea>
-
-      <Separator className="bg-sidebar-border" />
-
-      {/* Settings */}
-      <div className="px-2 py-2 shrink-0">
-        {sidebarCollapsed ? (
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <NavLink
-                to="/settings"
-                className={cn(
-                  "flex items-center justify-center rounded-md p-2 text-sm font-medium transition-colors",
-                  "text-sidebar-foreground hover:bg-sidebar-accent",
-                  location.pathname === "/settings" && "bg-sidebar-accent text-sidebar-primary"
-                )}
-              >
-                <Settings className="h-4 w-4" />
-              </NavLink>
-            </TooltipTrigger>
-            <TooltipContent side="right">Settings</TooltipContent>
-          </Tooltip>
-        ) : (
-          <NavLink
-            to="/settings"
-            className={cn(
-              "flex items-center gap-3 rounded-md px-2 py-2 text-sm font-medium transition-colors",
-              "text-sidebar-foreground hover:bg-sidebar-accent",
-              location.pathname === "/settings" && "bg-sidebar-accent text-sidebar-primary"
-            )}
+      <div
+        style={{
+          padding: "10px 12px",
+          borderTop: "1px solid var(--border-subtle)",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 999,
+            background: "var(--edn-accent)",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 12,
+            fontWeight: 600,
+            flexShrink: 0,
+          }}
+        >
+          AL
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 500,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              color: "var(--fg-1)",
+            }}
           >
-            <Settings className="h-4 w-4 shrink-0" />
-            <span>Settings</span>
-          </NavLink>
-        )}
+            Anaïs L.
+          </div>
+          <div style={{ fontSize: 12, color: "var(--fg-3)" }}>DFASM2 · Paris</div>
+        </div>
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <NavLink
+              to="/settings"
+              style={{
+                width: 26,
+                height: 26,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "transparent",
+                border: 0,
+                borderRadius: 6,
+                cursor: "pointer",
+                color: "var(--fg-3)",
+              }}
+              aria-label="Réglages"
+            >
+              <SettingsIcon size={14} />
+            </NavLink>
+          </TooltipTrigger>
+          <TooltipContent side="right">Réglages</TooltipContent>
+        </Tooltip>
       </div>
     </aside>
   );

@@ -1,0 +1,278 @@
+/* =========================================================================
+   EDN Tracker — Design Tokens
+   Ported from Claude Design hand-off (ds/colors_and_type.css).
+   These tokens drive the dashboard, onboarding, sidebar, and topbar.
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+/* -------------------------------------------------------------------------
+   1. PRIMITIVES
+   ------------------------------------------------------------------------- */
+:root {
+  --slate-50:  #f8fafc;
+  --slate-75:  #f4f6f8;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+  --slate-950: #020617;
+
+  --stone-50:  #fafaf9;
+  --stone-100: #f5f5f4;
+  --stone-200: #e7e5e4;
+  --paper:     #faf7f2;
+
+  --blue-50:  #eff6ff;
+  --blue-100: #dbeafe;
+  --blue-200: #bfdbfe;
+  --blue-300: #93c5fd;
+  --blue-400: #60a5fa;
+  --blue-500: #3b82f6;
+  --blue-600: #2563eb;
+  --blue-700: #1d4ed8;
+  --blue-800: #1e40af;
+  --blue-900: #1e3a8a;
+
+  --green-100: #dcfce7;
+  --green-500: #22c55e;
+  --green-600: #16a34a;
+  --green-700: #15803d;
+
+  --amber-100: #fef3c7;
+  --amber-500: #f59e0b;
+  --amber-600: #d97706;
+  --amber-700: #b45309;
+
+  --rose-100: #ffe4e6;
+  --rose-500: #f43f5e;
+  --rose-600: #e11d48;
+  --rose-700: #be123c;
+
+  --violet-500: #8b5cf6;
+
+  --hl-yellow: #fde68a;
+  --hl-green:  #bbf7d0;
+  --hl-rose:   #fecdd3;
+  --hl-blue:   #bfdbfe;
+  --hl-lavender: #ddd6fe;
+}
+
+/* -------------------------------------------------------------------------
+   2. SEMANTIC — light (default)
+   ------------------------------------------------------------------------- */
+:root,
+[data-theme="light"] {
+  --bg-canvas:   var(--stone-50);
+  --bg-surface:  #ffffff;
+  --bg-sunken:   var(--slate-75);
+  --bg-hover:    rgba(37, 99, 235, .04);
+  --bg-selected: rgba(37, 99, 235, .08);
+  --bg-overlay:  rgba(15, 23, 42, .40);
+
+  --fg-1:        var(--slate-900);
+  --fg-2:        var(--slate-700);
+  --fg-3:        var(--slate-500);
+  --fg-muted:    var(--slate-400);
+  --fg-on-accent: #ffffff;
+
+  --edn-accent:        var(--blue-600);
+  --edn-accent-hover:  var(--blue-700);
+  --edn-accent-fg:     var(--blue-700);
+  --edn-accent-bg:     var(--blue-50);
+  --edn-accent-border: var(--blue-200);
+
+  --border-subtle:  var(--slate-200);
+  --border-default: var(--slate-300);
+  --border-strong:  var(--slate-700);
+  --border-focus:   var(--blue-600);
+
+  --success-fg: var(--green-700);
+  --success-bg: var(--green-100);
+  --success-border: #86efac;
+
+  --warning-fg: var(--amber-700);
+  --warning-bg: var(--amber-100);
+  --warning-border: #fcd34d;
+
+  --danger-fg:  var(--rose-700);
+  --danger-bg:  var(--rose-100);
+  --danger-border: #fda4af;
+
+  --info-fg: var(--blue-700);
+  --info-bg: var(--blue-50);
+  --info-border: var(--blue-200);
+
+  --anki-again: var(--rose-600);
+  --anki-hard:  var(--amber-600);
+  --anki-good:  var(--green-600);
+  --anki-easy:  var(--blue-600);
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06), 0 0 0 1px rgba(15, 23, 42, .04);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, .08), 0 1px 2px rgba(15, 23, 42, .04);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, .12), 0 2px 6px rgba(15, 23, 42, .06);
+}
+
+/* -------------------------------------------------------------------------
+   3. SEMANTIC — dark
+   ------------------------------------------------------------------------- */
+[data-theme="dark"] {
+  --bg-canvas:   #0a0a0b;
+  --bg-surface:  #131316;
+  --bg-sunken:   #08080a;
+  --bg-hover:    rgba(96, 165, 250, .08);
+  --bg-selected: rgba(96, 165, 250, .14);
+  --bg-overlay:  rgba(0, 0, 0, .60);
+
+  --fg-1:        #f4f4f5;
+  --fg-2:        #c4c4c8;
+  --fg-3:        #8b8b92;
+  --fg-muted:    #5f5f67;
+  --fg-on-accent: #ffffff;
+
+  --edn-accent:        var(--blue-400);
+  --edn-accent-hover:  var(--blue-300);
+  --edn-accent-fg:     var(--blue-300);
+  --edn-accent-bg:     rgba(96, 165, 250, .10);
+  --edn-accent-border: rgba(96, 165, 250, .28);
+
+  --border-subtle:  #25252a;
+  --border-default: #34343b;
+  --border-strong:  #55555f;
+  --border-focus:   var(--blue-400);
+
+  --success-fg: #4ade80;
+  --success-bg: rgba(34, 197, 94, .12);
+  --success-border: rgba(34, 197, 94, .28);
+
+  --warning-fg: #fbbf24;
+  --warning-bg: rgba(245, 158, 11, .12);
+  --warning-border: rgba(245, 158, 11, .28);
+
+  --danger-fg:  #fb7185;
+  --danger-bg:  rgba(244, 63, 94, .12);
+  --danger-border: rgba(244, 63, 94, .28);
+
+  --info-fg: var(--blue-300);
+  --info-bg: rgba(96, 165, 250, .10);
+  --info-border: rgba(96, 165, 250, .28);
+
+  --paper: #1a1814;
+
+  --shadow-sm: 0 0 0 1px rgba(255, 255, 255, .04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, .40), 0 0 0 1px rgba(255, 255, 255, .04);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, .60), 0 0 0 1px rgba(255, 255, 255, .06);
+}
+
+/* -------------------------------------------------------------------------
+   4. ACCENT VARIANTS (override --edn-accent* family)
+   ------------------------------------------------------------------------- */
+[data-accent="teal"]   { --edn-accent: #0d9488; --edn-accent-hover: #0f766e; --edn-accent-fg: #0f766e; --edn-accent-bg: #ccfbf1; --edn-accent-border: #99f6e4; }
+[data-accent="indigo"] { --edn-accent: #4f46e5; --edn-accent-hover: #4338ca; --edn-accent-fg: #4338ca; --edn-accent-bg: #e0e7ff; --edn-accent-border: #c7d2fe; }
+[data-accent="rose"]   { --edn-accent: #e11d48; --edn-accent-hover: #be123c; --edn-accent-fg: #be123c; --edn-accent-bg: #ffe4e6; --edn-accent-border: #fecdd3; }
+
+[data-theme="dark"][data-accent="teal"]   { --edn-accent: #2dd4bf; --edn-accent-fg: #5eead4; --edn-accent-bg: rgba(45,212,191,.10); --edn-accent-border: rgba(45,212,191,.28); }
+[data-theme="dark"][data-accent="indigo"] { --edn-accent: #818cf8; --edn-accent-fg: #a5b4fc; --edn-accent-bg: rgba(129,140,248,.10); --edn-accent-border: rgba(129,140,248,.28); }
+[data-theme="dark"][data-accent="rose"]   { --edn-accent: #fb7185; --edn-accent-fg: #fda4af; --edn-accent-bg: rgba(251,113,133,.10); --edn-accent-border: rgba(251,113,133,.28); }
+
+/* -------------------------------------------------------------------------
+   5. TYPE / SPACING / RADII
+   ------------------------------------------------------------------------- */
+:root {
+  --font-ui:      'Inter Tight', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --text-xs:   12px;
+  --text-sm:   13px;
+  --text-base: 14px;
+  --text-md:   16px;
+  --text-lg:   18px;
+  --text-xl:   20px;
+  --text-2xl:  24px;
+  --text-3xl:  30px;
+  --text-4xl:  40px;
+  --text-5xl:  56px;
+
+  --leading-tight:  1.2;
+  --leading-snug:   1.35;
+  --leading-normal: 1.5;
+  --leading-loose:  1.65;
+
+  --tracking-tight:  -0.02em;
+  --tracking-normal: 0em;
+  --tracking-wide:   0.04em;
+  --tracking-caps:   0.08em;
+
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-pill: 999px;
+
+  --layout-sidebar:           240px;
+  --layout-sidebar-collapsed: 56px;
+  --layout-rightpanel:        320px;
+  --layout-topbar:            64px;
+}
+
+/* Density */
+[data-density="compact"] { font-size: 12.5px; }
+[data-density="comfy"]   { font-size: 14.5px; }
+
+/* -------------------------------------------------------------------------
+   6. EDN-themed surfaces — use sparingly via .edn-surface / utility classes
+   ------------------------------------------------------------------------- */
+.edn-root {
+  font-family: var(--font-ui);
+  color: var(--fg-1);
+  background: var(--bg-canvas);
+}
+
+.edn-tnum { font-variant-numeric: tabular-nums; }
+
+.edn-eyebrow {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  font-weight: var(--weight-semibold);
+  color: var(--fg-3);
+}
+
+.edn-meta {
+  font-size: var(--text-xs);
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.edn-display {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  color: var(--fg-1);
+}

@@ -1,11 +1,17 @@
 import * as React from "react";
-import { Moon, Sun, Database, Download, Upload, Brain, Info, Shield } from "lucide-react";
+import { Moon, Sun, Database, Download, Upload, Brain, Info, Shield, LayoutDashboard, Palette, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { useUiStore } from "@/stores/ui";
 import { cn } from "@/lib/utils";
+import {
+  usePreferences,
+  type DashboardLayout,
+  type AccentColor,
+  type Density,
+  type Theme,
+} from "@/stores/preferences";
 
 function SettingsSection({ title, icon: Icon, children }: {
   title: string;
@@ -40,21 +46,66 @@ function SettingsRow({ label, description, children }: {
   );
 }
 
+const LAYOUT_OPTIONS: Array<{ id: DashboardLayout; label: string; sub: string }> = [
+  { id: "cockpit", label: "Cockpit", sub: "focus aujourd'hui" },
+  { id: "bureau", label: "Bureau", sub: "cahier + post-its" },
+  { id: "notion", label: "Modulaire", sub: "blocs réordonnables" },
+];
+
+const ACCENT_OPTIONS: Array<{ id: AccentColor; swatch: string }> = [
+  { id: "blue", swatch: "#2563eb" },
+  { id: "teal", swatch: "#0d9488" },
+  { id: "indigo", swatch: "#4f46e5" },
+  { id: "rose", swatch: "#e11d48" },
+];
+
+const DENSITY_OPTIONS: Density[] = ["compact", "regular", "comfy"];
+
+function PillGroup<T extends string>({
+  value,
+  options,
+  onChange,
+  render,
+}: {
+  value: T;
+  options: T[];
+  onChange: (v: T) => void;
+  render: (v: T) => React.ReactNode;
+}) {
+  return (
+    <div className="flex gap-1 p-0.5 rounded-md bg-muted">
+      {options.map((o) => (
+        <button
+          key={o}
+          onClick={() => onChange(o)}
+          className={cn(
+            "h-7 px-3 rounded text-xs font-medium capitalize transition-colors",
+            value === o ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {render(o)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Settings() {
-  const { theme, setTheme } = useUiStore();
+  const theme = usePreferences((s) => s.theme);
+  const setTheme = usePreferences((s) => s.setTheme);
+  const layout = usePreferences((s) => s.layout);
+  const setLayout = usePreferences((s) => s.setLayout);
+  const accent = usePreferences((s) => s.accent);
+  const setAccent = usePreferences((s) => s.setAccent);
+  const density = usePreferences((s) => s.density);
+  const setDensity = usePreferences((s) => s.setDensity);
+  const resetOnboarding = usePreferences((s) => s.resetOnboarding);
+
   const isDark = theme === "dark";
-
-  // Apply theme to document
-  React.useEffect(() => {
-    document.documentElement.classList.toggle("dark", isDark);
-  }, [isDark]);
-
-  const handleThemeToggle = () => {
-    setTheme(isDark ? "light" : "dark");
-  };
+  const handleThemeToggle = () => setTheme(isDark ? "light" : ("dark" as Theme));
 
   return (
-    <div className="p-6 space-y-6 max-w-2xl">
+    <div className="p-6 space-y-6 max-w-2xl overflow-auto h-full">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Paramètres</h1>
         <p className="text-muted-foreground text-sm mt-1">
@@ -64,19 +115,73 @@ export function Settings() {
 
       {/* Appearance */}
       <SettingsSection title="Apparence" icon={isDark ? Moon : Sun}>
-        <SettingsRow
-          label="Thème sombre"
-          description="Basculer entre le mode sombre et clair"
-        >
+        <SettingsRow label="Thème sombre" description="Basculer entre le mode sombre et clair">
           <div className="flex items-center gap-2">
             <Sun className="h-4 w-4 text-muted-foreground" />
-            <Switch
-              id="theme-switch"
-              checked={isDark}
-              onCheckedChange={handleThemeToggle}
-            />
+            <Switch id="theme-switch" checked={isDark} onCheckedChange={handleThemeToggle} />
             <Moon className="h-4 w-4 text-muted-foreground" />
           </div>
+        </SettingsRow>
+        <SettingsRow label="Couleur d'accent" description="Identité chromatique des actions principales">
+          <div className="flex items-center gap-2">
+            {ACCENT_OPTIONS.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => setAccent(a.id)}
+                aria-label={a.id}
+                className={cn(
+                  "h-6 w-6 rounded-full border-2 transition",
+                  accent === a.id ? "border-foreground" : "border-transparent"
+                )}
+                style={{ background: a.swatch }}
+              />
+            ))}
+          </div>
+        </SettingsRow>
+        <SettingsRow label="Densité" description="Taille de base des éléments d'interface">
+          <PillGroup value={density} options={DENSITY_OPTIONS} onChange={setDensity} render={(o) => o} />
+        </SettingsRow>
+      </SettingsSection>
+
+      {/* Dashboard layout */}
+      <SettingsSection title="Tableau de bord" icon={LayoutDashboard}>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Choisis la disposition de ton dashboard. Tu peux en changer à tout moment.
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          {LAYOUT_OPTIONS.map((opt) => {
+            const sel = layout === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => setLayout(opt.id)}
+                className={cn(
+                  "rounded-md border p-3 text-left transition",
+                  sel
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-foreground/30"
+                )}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Palette className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-sm font-semibold">{opt.label}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">{opt.sub}</p>
+              </button>
+            );
+          })}
+        </div>
+      </SettingsSection>
+
+      {/* Onboarding replay */}
+      <SettingsSection title="Onboarding" icon={Sparkles}>
+        <SettingsRow
+          label="Revoir l'onboarding"
+          description="Relance les 4 étapes de bienvenue (année, Anki, dashboard)"
+        >
+          <Button variant="outline" size="sm" onClick={resetOnboarding}>
+            Rejouer
+          </Button>
         </SettingsRow>
       </SettingsSection>
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, List, AlertCircle, CreditCard, PenTool, Search, Loader2, BookOpen } from "lucide-react";
@@ -130,6 +130,10 @@ export function GlobalSearch({ open, onOpenChange }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="p-0 max-w-2xl gap-0 overflow-hidden" onKeyDown={handleKeyDown}>
+        <DialogTitle className="sr-only">Recherche globale</DialogTitle>
+        <DialogDescription className="sr-only">
+          Rechercher dans les items, PDFs, erreurs et cartes Anki
+        </DialogDescription>
         {/* Search input */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
           {loading ? (

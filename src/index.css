@@ -1,48 +1,125 @@
+/* Design tokens MUST be imported before @tailwind so they are available
+   to every layer. Native CSS @import requires being first in the file. */
+@import "./styles/design-tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+  /*
+   * Legacy shadcn HSL tokens — pinned to the EDN Tracker DS so the entire
+   * app (Dashboard + legacy pages + Radix primitives) shares one palette.
+   *
+   * HSL values are exact equivalents of the EDN DS hex (see design-tokens.css):
+   *   dark   bg-canvas  #0a0a0b
+   *          bg-surface #131316
+   *          bg-sunken  #08080a
+   *          fg-1       #f4f4f5
+   *          fg-2       #c4c4c8
+   *          fg-3       #8b8b92
+   *          border     #25252a / #34343b
+   *   light  bg-canvas  #fafaf9 (stone-50)
+   *          bg-surface #ffffff
+   *          bg-sunken  #f4f6f8 (slate-75)
+   *          fg-1       #0f172a (slate-900)
+   *          ...
+   *
+   * Default (no data-theme) === dark, to match the prior production behaviour.
+   */
+  :root,
+  [data-theme="dark"] {
+    --background: 240 5% 4%;          /* bg-canvas  #0a0a0b */
+    --foreground: 240 5% 96%;         /* fg-1       #f4f4f5 */
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 240 7% 8%;                /* bg-surface #131316 */
+    --card-foreground: 240 5% 96%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 240 7% 8%;
+    --popover-foreground: 240 5% 96%;
 
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* primary tracks the blue accent (overrides per accent below) */
+    --primary: 213 94% 68%;           /* blue-400   #60a5fa */
+    --primary-foreground: 222 47% 11%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 240 6% 15%;          /* border-subtle #25252a */
+    --secondary-foreground: 240 5% 96%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 240 11% 3%;              /* bg-sunken  #08080a */
+    --muted-foreground: 240 5% 56%;   /* fg-3       #8b8b92 */
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 240 6% 15%;             /* card hover / radix accent */
+    --accent-foreground: 240 5% 96%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 351 95% 72%;       /* danger-fg  #fb7185 */
+    --destructive-foreground: 240 5% 96%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --border: 240 6% 15%;             /* border-subtle */
+    --input: 240 7% 22%;              /* border-default #34343b */
+    --ring: 213 94% 68%;              /* blue-400 */
 
     --radius: 0.5rem;
 
-    --sidebar-background: 220 13% 9%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217.2 91.2% 59.8%;
-    --sidebar-primary-foreground: 222.2 47.4% 11.2%;
-    --sidebar-accent: 217.2 32.6% 17.5%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217.2 32.6% 17.5%;
-    --sidebar-ring: 224.3 76.3% 48%;
+    --sidebar-background: 240 5% 4%;
+    --sidebar-foreground: 240 5% 96%;
+    --sidebar-primary: 213 94% 68%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 240 6% 15%;
+    --sidebar-accent-foreground: 213 96% 78%;
+    --sidebar-border: 240 6% 15%;
+    --sidebar-ring: 213 94% 68%;
   }
+
+  [data-theme="light"] {
+    --background: 60 9% 98%;          /* stone-50   #fafaf9 */
+    --foreground: 222 47% 11%;        /* slate-900  #0f172a */
+
+    --card: 0 0% 100%;                /* white */
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 221 83% 53%;           /* blue-600   #2563eb */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 214 32% 91%;         /* slate-200  #e2e8f0 */
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 14% 96%;             /* slate-75   #f4f6f8 */
+    --muted-foreground: 215 16% 47%;  /* slate-500  #64748b */
+
+    --accent: 210 40% 96%;            /* slate-100  #f1f5f9 */
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 350 89% 50%;       /* rose-600   #e11d48 */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;            /* slate-200 */
+    --input: 213 27% 84%;             /* slate-300  #cbd5e1 */
+    --ring: 221 83% 53%;
+
+    --sidebar-background: 60 9% 98%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 224 76% 48%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 221 83% 53%;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Accent variants — keep --primary / --ring in sync with --edn-accent */
+  /* so Tailwind buttons, switches, and rings follow the chosen accent.   */
+  /* ------------------------------------------------------------------ */
+  [data-theme="light"][data-accent="teal"]   { --primary: 173 80% 32%; --ring: 173 80% 32%; --sidebar-primary: 173 80% 32%; --sidebar-ring: 173 80% 32%; }
+  [data-theme="light"][data-accent="indigo"] { --primary: 244 75% 59%; --ring: 244 75% 59%; --sidebar-primary: 244 75% 59%; --sidebar-ring: 244 75% 59%; }
+  [data-theme="light"][data-accent="rose"]   { --primary: 350 89% 50%; --ring: 350 89% 50%; --sidebar-primary: 350 89% 50%; --sidebar-ring: 350 89% 50%; }
+
+  [data-theme="dark"][data-accent="teal"]    { --primary: 172 66% 50%; --ring: 172 66% 50%; --sidebar-primary: 172 66% 50%; --sidebar-ring: 172 66% 50%; }
+  [data-theme="dark"][data-accent="indigo"]  { --primary: 235 87% 73%; --ring: 235 87% 73%; --sidebar-primary: 235 87% 73%; --sidebar-ring: 235 87% 73%; }
+  [data-theme="dark"][data-accent="rose"]    { --primary: 351 95% 72%; --ring: 351 95% 72%; --sidebar-primary: 351 95% 72%; --sidebar-ring: 351 95% 72%; }
 }
 
 @layer base {
